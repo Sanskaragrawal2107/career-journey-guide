@@ -16,7 +16,7 @@ export const Hero = () => {
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6">
             <Button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/auth")}
               className="bg-primary hover:bg-primary-700 text-white"
               size="lg"
             >
