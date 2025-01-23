@@ -1,23 +1,36 @@
-import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { useState, useRef } from "react";
+import { useToast } from "@/components/ui/use-toast";
+import { Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DashboardCardProps {
   title: string;
   description: string;
   icon: React.ReactNode;
-  onClick?: () => void;
+  onClick: () => void;
+  className?: string;
+  isProcessing?: boolean;
   acceptFile?: boolean;
 }
 
-export function DashboardCard({ title, description, icon, onClick, acceptFile = false }: DashboardCardProps) {
+export const DashboardCard = ({
+  title,
+  description,
+  icon,
+  onClick,
+  className,
+  isProcessing = false,
+  acceptFile = false,
+}: DashboardCardProps) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
-
+    
     if (file.type !== 'application/pdf') {
       toast({
         title: "Error",
@@ -32,14 +45,12 @@ export function DashboardCard({ title, description, icon, onClick, acceptFile = 
       // Upload file to Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      console.log('Uploading file:', fileName);
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('resumes')
         .upload(fileName, file);
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
         throw new Error('Failed to upload file to storage');
       }
 
@@ -47,8 +58,6 @@ export function DashboardCard({ title, description, icon, onClick, acceptFile = 
       const { data: { publicUrl } } = supabase.storage
         .from('resumes')
         .getPublicUrl(fileName);
-
-      console.log('Public URL:', publicUrl);
 
       // Create FormData to send file URL to Make.com
       const formData = new FormData();
@@ -62,7 +71,6 @@ export function DashboardCard({ title, description, icon, onClick, acceptFile = 
       });
 
       if (!response.ok) {
-        console.error('Make.com response error:', response.statusText);
         throw new Error('Failed to process resume');
       }
 
@@ -83,34 +91,47 @@ export function DashboardCard({ title, description, icon, onClick, acceptFile = 
   };
 
   const handleClick = () => {
-    if (acceptFile) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.pdf';
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (file) {
-          handleFileUpload(file);
-        }
-      };
-      input.click();
-    } else if (onClick) {
+    if (loading) return;
+    
+    if (title === "Create New Resume" && acceptFile) {
+      fileInputRef.current?.click();
+    } else {
       onClick();
     }
   };
 
   return (
-    <Card
-      className="p-6 cursor-pointer hover:shadow-lg transition-shadow"
-      onClick={handleClick}
-    >
-      <div className="flex items-start space-x-4">
-        <div className="mt-1">{icon}</div>
-        <div>
-          <h3 className="font-semibold text-lg">{title}</h3>
-          <p className="text-gray-600">{description}</p>
+    <>
+      <Card
+        className={cn(
+          "p-6 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1",
+          className
+        )}
+        onClick={handleClick}
+      >
+        <div className="flex items-start space-x-4">
+          <div className="p-2 bg-primary-50 rounded-lg">
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : 
+              title === "Create New Resume" ? <Upload className="h-6 w-6 text-primary" /> : icon}
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg text-gray-900">{title}</h3>
+            <p className="text-sm text-gray-600 mt-1">{description}</p>
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+      {acceptFile && (
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept=".pdf"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFileUpload(file);
+          }}
+        />
+      )}
+    </>
   );
-}
+};
