@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DashboardCardProps {
   title: string;
@@ -41,15 +42,33 @@ export const DashboardCard = ({
 
     setLoading(true);
     try {
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('fileName', file.name);
+      // Upload file to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(fileName, file);
 
-      // Send to Make.com webhook
+      if (uploadError) {
+        throw new Error('Failed to upload file to storage');
+      }
+
+      // Get the public URL of the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileName);
+
+      // Send file URL to Make.com webhook
       const response = await fetch('https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileUrl: publicUrl,
+        }),
       });
 
       if (!response.ok) {
