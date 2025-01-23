@@ -2,7 +2,6 @@ import { DashboardCard } from "@/components/DashboardCard";
 import { FileText, TrendingUp, BookOpen, Target, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import { ResumeManager } from "@/components/ResumeManager";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -18,9 +17,10 @@ const Dashboard = () => {
   const dashboardItems = [
     {
       title: "Create New Resume",
-      description: "Build a professional resume with AI assistance",
+      description: "Upload your resume for AI optimization",
       icon: <FileText className="w-6 h-6 text-primary" />,
-      onClick: handleUpload,
+      onClick: () => {}, // This will be handled by DashboardCard's internal logic
+      acceptFile: true,
     },
     {
       title: "Previous Resumes",
@@ -53,11 +53,6 @@ const Dashboard = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
       
       <div className="space-y-8">
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Resume Management</h2>
-          <ResumeManager />
-        </div>
-
         <div>
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

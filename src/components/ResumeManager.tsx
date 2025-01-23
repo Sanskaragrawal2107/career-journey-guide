@@ -47,6 +47,28 @@ export function ResumeManager() {
     }
   }
 
+  async function ensureProfileExists(userId: string, userEmail: string) {
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select()
+      .eq('id', userId)
+      .single();
+
+    if (!profile) {
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: userEmail,
+        });
+
+      if (insertError) throw insertError;
+    } else if (fetchError && fetchError.code !== 'PGRST116') {
+      // PGRST116 means no rows returned, which is expected if profile doesn't exist
+      throw fetchError;
+    }
+  }
+
   async function uploadResume(event: React.ChangeEvent<HTMLInputElement>) {
     try {
       setUploading(true);
@@ -55,6 +77,9 @@ export function ResumeManager() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
+
+      // Ensure profile exists before uploading
+      await ensureProfileExists(user.id, user.email || '');
 
       // Upload file to storage
       const fileExt = file.name.split('.').pop();
