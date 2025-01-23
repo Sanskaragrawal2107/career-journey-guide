@@ -59,16 +59,15 @@ export const DashboardCard = ({
         .from('resumes')
         .getPublicUrl(fileName);
 
+      // Create FormData to send file URL to Make.com
+      const formData = new FormData();
+      formData.append('fileUrl', publicUrl);
+      formData.append('fileName', file.name);
+
       // Send file URL to Make.com webhook
       const response = await fetch('https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileUrl: publicUrl,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
