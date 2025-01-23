@@ -34,18 +34,40 @@ export const DashboardCard = ({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
-        const response = await fetch('/api/process-resume', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.id,
-          })
-        });
+        // Get the latest resume for the user
+        const { data: resumes, error: resumeError } = await supabase
+          .from('resumes')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (resumeError) throw resumeError;
+        if (!resumes || resumes.length === 0) {
+          throw new Error('No resume found');
+        }
+
+        const resumeId = resumes[0].id;
+
+        // Call the Supabase Edge Function
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-resume`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              resumeId: resumeId,
+            })
+          }
+        );
 
         if (!response.ok) {
-          throw new Error('Failed to process resume');
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to process resume');
         }
 
         toast({
@@ -56,7 +78,7 @@ export const DashboardCard = ({
         console.error('Error processing resume:', error);
         toast({
           title: "Error",
-          description: "Failed to process resume",
+          description: error.message || "Failed to process resume",
           variant: "destructive",
         });
       } finally {
