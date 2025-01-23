@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Upload } from "lucide-react";
 
 interface DashboardCardProps {
@@ -42,34 +41,25 @@ export const DashboardCard = ({
 
     setLoading(true);
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64File = reader.result as string;
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileName', file.name);
 
-        // Send to Make.com webhook
-        const response = await fetch('https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileContent: base64File,
-            fileType: file.type,
-          }),
-        });
+      // Send to Make.com webhook
+      const response = await fetch('https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3', {
+        method: 'POST',
+        body: formData,
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to process resume');
-        }
+      if (!response.ok) {
+        throw new Error('Failed to process resume');
+      }
 
-        toast({
-          title: "Success",
-          description: "Resume uploaded successfully",
-        });
-      };
+      toast({
+        title: "Success",
+        description: "Resume uploaded successfully",
+      });
     } catch (error) {
       console.error('Error uploading resume:', error);
       toast({
