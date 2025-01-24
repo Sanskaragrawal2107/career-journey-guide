@@ -28,6 +28,30 @@ export const DashboardCard = ({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const ensureProfileExists = async (userId: string, userEmail: string) => {
+    // Check if profile exists
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select()
+      .eq('id', userId)
+      .single();
+
+    if (!profile) {
+      // Create profile if it doesn't exist
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: userEmail,
+        });
+
+      if (insertError) throw new Error('Failed to create profile');
+    } else if (fetchError && fetchError.code !== 'PGRST116') {
+      // PGRST116 means no rows returned, which is expected if profile doesn't exist
+      throw fetchError;
+    }
+  };
+
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
@@ -45,6 +69,9 @@ export const DashboardCard = ({
       // Get user data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
+
+      // Ensure profile exists before proceeding
+      await ensureProfileExists(user.id, user.email || '');
 
       // Upload file to Supabase Storage
       const fileExt = file.name.split(".").pop();
