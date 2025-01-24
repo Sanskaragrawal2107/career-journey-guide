@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Loader2, Trash2, Download } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 interface Resume {
   id: string;
@@ -18,46 +19,41 @@ interface Resume {
 
 export function ResumeManager() {
   const [uploading, setUploading] = useState(false);
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchResumes();
-  }, []);
+  const { data: resumes = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['resumes'],
+    queryFn: async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
 
-  async function fetchResumes() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+        const { data, error } = await supabase
+          .from('resumes')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      const { data, error } = await supabase
-        .from('resumes')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      const transformedData: Resume[] = (data || []).map(item => ({
-        id: item.id,
-        file_path: item.file_path,
-        created_at: item.created_at,
-        drive_file_url: item.drive_file_url,
-        analysis_result: item.analysis_result as { optimized_content?: string } | null
-      }));
-
-      setResumes(transformedData);
-    } catch (error) {
-      console.error('Error fetching resumes:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch resumes",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
+        if (error) throw error;
+        
+        return (data || []).map(item => ({
+          id: item.id,
+          file_path: item.file_path,
+          created_at: item.created_at,
+          drive_file_url: item.drive_file_url,
+          analysis_result: item.analysis_result as { optimized_content?: string } | null
+        }));
+      } catch (error) {
+        console.error('Error fetching resumes:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch resumes",
+          variant: "destructive",
+        });
+        return [];
+      }
+    },
+    refetchInterval: 5000, // Refetch every 5 seconds
+  });
 
   async function ensureProfileExists(userId: string, userEmail: string) {
     const { data: profile, error: fetchError } = await supabase
@@ -114,7 +110,7 @@ export function ResumeManager() {
         description: "Resume uploaded successfully",
       });
 
-      fetchResumes();
+      refetch(); // Manually refetch after upload
     } catch (error) {
       console.error('Error uploading resume:', error);
       toast({
@@ -147,7 +143,7 @@ export function ResumeManager() {
         description: "Resume deleted successfully",
       });
 
-      setResumes(resumes.filter(resume => resume.id !== id));
+      refetch(); // Manually refetch after deletion
     } catch (error) {
       console.error('Error deleting resume:', error);
       toast({
