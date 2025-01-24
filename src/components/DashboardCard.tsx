@@ -42,22 +42,41 @@ export const DashboardCard = ({
 
     setLoading(true);
     try {
+      // Get user data
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
       // Upload file to Supabase Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("resumes")
-        .upload(fileName, file);
+        .upload(filePath, file);
 
       if (uploadError) {
         throw new Error("Failed to upload file to storage");
       }
 
+      // Create resume record in database
+      const { data: resumeData, error: dbError } = await supabase
+        .from("resumes")
+        .insert({
+          file_path: filePath,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (dbError || !resumeData) {
+        throw new Error("Failed to create resume record");
+      }
+
       // Generate a Signed URL valid for 2 minutes
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from("resumes")
-        .createSignedUrl(fileName, 120); // 120 seconds = 2 minutes
+        .createSignedUrl(filePath, 120); // 120 seconds = 2 minutes
 
       if (signedUrlError || !signedUrlData) {
         throw new Error("Failed to generate Signed URL");
@@ -65,12 +84,15 @@ export const DashboardCard = ({
 
       const signedUrl = signedUrlData.signedUrl;
 
-      // Send the Signed URL to Make.com
+      // Send both the Signed URL and resume ID to Make.com
       const response = await fetch(
         "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
         {
           method: "POST",
-          body: JSON.stringify({ fileUrl: signedUrl }),
+          body: JSON.stringify({ 
+            fileUrl: signedUrl,
+            resumeId: resumeData.id 
+          }),
           headers: { "Content-Type": "application/json" },
         }
       );
