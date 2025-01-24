@@ -4,19 +4,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Loader2, Trash2 } from "lucide-react";
+import { FileText, Loader2, Trash2, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Resume {
   id: string;
   file_path: string;
   created_at: string;
-  analysis_result: any;
+  analysis_result: {
+    optimized_content?: string;
+  } | null;
 }
 
 export function ResumeManager() {
   const [uploading, setUploading] = useState(false);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -175,7 +184,7 @@ export function ResumeManager() {
             <TableRow>
               <TableHead>Resume</TableHead>
               <TableHead>Uploaded</TableHead>
-              <TableHead>Analysis Status</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -188,9 +197,20 @@ export function ResumeManager() {
                 </TableCell>
                 <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
                 <TableCell>
-                  {resume.analysis_result ? 'Analyzed' : 'Pending Analysis'}
+                  {resume.analysis_result?.optimized_content 
+                    ? 'Optimized' 
+                    : 'Processing'}
                 </TableCell>
-                <TableCell>
+                <TableCell className="space-x-2">
+                  {resume.analysis_result?.optimized_content && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSelectedResume(resume)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -208,6 +228,17 @@ export function ResumeManager() {
           No resumes uploaded yet
         </div>
       )}
+
+      <Dialog open={!!selectedResume} onOpenChange={() => setSelectedResume(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Optimized Resume</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 whitespace-pre-wrap">
+            {selectedResume?.analysis_result?.optimized_content}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

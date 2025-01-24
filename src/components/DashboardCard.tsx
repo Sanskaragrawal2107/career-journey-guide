@@ -81,7 +81,7 @@ export const DashboardCard = ({
 
       toast({
         title: "Success",
-        description: "Resume uploaded successfully",
+        description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
       });
     } catch (error) {
       console.error("Error uploading resume:", error);
