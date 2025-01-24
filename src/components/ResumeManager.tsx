@@ -43,7 +43,7 @@ export function ResumeManager() {
         file_path: item.file_path,
         created_at: item.created_at,
         drive_file_url: item.drive_file_url,
-        analysis_result: item.analysis_result
+        analysis_result: item.analysis_result as { optimized_content?: string } | null
       }));
 
       setResumes(transformedData);
