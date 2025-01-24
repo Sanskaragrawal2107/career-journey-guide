@@ -43,7 +43,16 @@ export function ResumeManager() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setResumes(data || []);
+      
+      // Transform the data to match our Resume interface
+      const transformedData: Resume[] = (data || []).map(item => ({
+        id: item.id,
+        file_path: item.file_path,
+        created_at: item.created_at,
+        analysis_result: item.analysis_result as { optimized_content?: string } | null
+      }));
+
+      setResumes(transformedData);
     } catch (error) {
       console.error('Error fetching resumes:', error);
       toast({
