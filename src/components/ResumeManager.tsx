@@ -4,13 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Loader2, Trash2, Eye } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FileText, Loader2, Trash2, Download } from "lucide-react";
+import { Document, Packer, Paragraph, TextRun } from "docx";
 
 interface Resume {
   id: string;
@@ -44,7 +39,6 @@ export function ResumeManager() {
 
       if (error) throw error;
       
-      // Transform the data to match our Resume interface
       const transformedData: Resume[] = (data || []).map(item => ({
         id: item.id,
         file_path: item.file_path,
@@ -82,7 +76,6 @@ export function ResumeManager() {
 
       if (insertError) throw insertError;
     } else if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 means no rows returned, which is expected if profile doesn't exist
       throw fetchError;
     }
   }
@@ -96,10 +89,8 @@ export function ResumeManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Ensure profile exists before uploading
       await ensureProfileExists(user.id, user.email || '');
 
-      // Upload file to storage
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
       
@@ -109,7 +100,6 @@ export function ResumeManager() {
 
       if (uploadError) throw uploadError;
 
-      // Create database entry
       const { error: dbError } = await supabase
         .from('resumes')
         .insert({
@@ -139,14 +129,12 @@ export function ResumeManager() {
 
   async function deleteResume(id: string, filePath: string) {
     try {
-      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('resumes')
         .remove([filePath]);
 
       if (storageError) throw storageError;
 
-      // Delete from database
       const { error: dbError } = await supabase
         .from('resumes')
         .delete()
@@ -169,6 +157,47 @@ export function ResumeManager() {
       });
     }
   }
+
+  const generateAndDownloadDocx = async (content: string, fileName: string) => {
+    try {
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun(content)
+              ],
+            }),
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName}.docx`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "Resume downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate document",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -215,9 +244,12 @@ export function ResumeManager() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setSelectedResume(resume)}
+                      onClick={() => generateAndDownloadDocx(
+                        resume.analysis_result?.optimized_content || '',
+                        `optimized_resume_${new Date(resume.created_at).toLocaleDateString()}`
+                      )}
                     >
-                      <Eye className="h-4 w-4" />
+                      <Download className="h-4 w-4" />
                     </Button>
                   )}
                   <Button
@@ -237,17 +269,6 @@ export function ResumeManager() {
           No resumes uploaded yet
         </div>
       )}
-
-      <Dialog open={!!selectedResume} onOpenChange={() => setSelectedResume(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Optimized Resume</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4 whitespace-pre-wrap">
-            {selectedResume?.analysis_result?.optimized_content}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
