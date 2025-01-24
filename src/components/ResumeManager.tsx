@@ -5,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Loader2, Trash2, Download } from "lucide-react";
-import { Document, Packer, Paragraph, TextRun } from "docx";
 
 interface Resume {
   id: string;
   file_path: string;
   created_at: string;
+  drive_file_url: string | null;
   analysis_result: {
     optimized_content?: string;
   } | null;
@@ -20,7 +20,6 @@ export function ResumeManager() {
   const [uploading, setUploading] = useState(false);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,7 +42,8 @@ export function ResumeManager() {
         id: item.id,
         file_path: item.file_path,
         created_at: item.created_at,
-        analysis_result: item.analysis_result as { optimized_content?: string } | null
+        drive_file_url: item.drive_file_url,
+        analysis_result: item.analysis_result
       }));
 
       setResumes(transformedData);
@@ -158,47 +158,6 @@ export function ResumeManager() {
     }
   }
 
-  const generateAndDownloadDocx = async (content: string, fileName: string) => {
-    try {
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun(content)
-              ],
-            }),
-          ],
-        }],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${fileName}.docx`;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      toast({
-        title: "Success",
-        description: "Resume downloaded successfully",
-      });
-    } catch (error) {
-      console.error('Error generating document:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate document",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -235,19 +194,14 @@ export function ResumeManager() {
                 </TableCell>
                 <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
                 <TableCell>
-                  {resume.analysis_result?.optimized_content 
-                    ? 'Optimized' 
-                    : 'Processing'}
+                  {resume.drive_file_url ? 'Optimized' : 'Processing'}
                 </TableCell>
                 <TableCell className="space-x-2">
-                  {resume.analysis_result?.optimized_content && (
+                  {resume.drive_file_url && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => generateAndDownloadDocx(
-                        resume.analysis_result?.optimized_content || '',
-                        `optimized_resume_${new Date(resume.created_at).toLocaleDateString()}`
-                      )}
+                      onClick={() => window.open(resume.drive_file_url!, '_blank')}
                     >
                       <Download className="h-4 w-4" />
                     </Button>

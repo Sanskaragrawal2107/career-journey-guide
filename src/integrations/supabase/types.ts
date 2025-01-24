@@ -79,6 +79,7 @@ export type Database = {
         Row: {
           analysis_result: Json | null
           created_at: string | null
+          drive_file_url: string | null
           file_path: string
           id: string
           updated_at: string | null
@@ -87,6 +88,7 @@ export type Database = {
         Insert: {
           analysis_result?: Json | null
           created_at?: string | null
+          drive_file_url?: string | null
           file_path: string
           id?: string
           updated_at?: string | null
@@ -95,6 +97,7 @@ export type Database = {
         Update: {
           analysis_result?: Json | null
           created_at?: string | null
+          drive_file_url?: string | null
           file_path?: string
           id?: string
           updated_at?: string | null
