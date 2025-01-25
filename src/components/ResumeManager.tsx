@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Loader2, Trash2, Download } from "lucide-react";
+import { FileText, Loader2, Trash2, Download, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 interface Resume {
@@ -195,51 +195,65 @@ export function ResumeManager() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {resumes.map((resume) => {
-              console.log('Rendering resume row:', {
-                id: resume.id,
-                drive_file_url: resume.drive_file_url,
-                created_at: resume.created_at
-              });
-              return (
-                <TableRow key={resume.id}>
-                  <TableCell className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Resume {new Date(resume.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
-                  <TableCell>
-                    {resume.drive_file_url ? 'Optimized' : 'Processing'}
-                  </TableCell>
-                  <TableCell className="space-x-2">
-                    {resume.drive_file_url && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          console.log('Opening drive file URL:', resume.drive_file_url);
-                          window.open(resume.drive_file_url!, '_blank');
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    )}
+            {resumes.map((resume) => (
+              <TableRow key={resume.id}>
+                <TableCell className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Resume {new Date(resume.created_at).toLocaleDateString()}
+                </TableCell>
+                <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
+                <TableCell>
+                  {resume.drive_file_url ? (
+                    <span className="text-green-600 flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      Ready to view
+                    </span>
+                  ) : (
+                    <span className="text-yellow-600 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="space-x-2">
+                  {resume.drive_file_url ? (
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteResume(resume.id, resume.file_path)}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        console.log('Opening drive file URL:', resume.drive_file_url);
+                        window.open(resume.drive_file_url!, '_blank');
+                      }}
+                      className="flex items-center gap-2"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <ExternalLink className="h-4 w-4" />
+                      View Resume
                     </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Processing
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteResume(resume.id, resume.file_path)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       ) : (
-        <div className="text-center text-muted-foreground">
-          No resumes uploaded yet
+        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed">
+          <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+          <h3 className="text-lg font-medium text-gray-900 mb-1">No resumes found</h3>
+          <p className="text-sm text-gray-500">
+            Upload a resume to get started with optimization
+          </p>
         </div>
       )}
     </div>
