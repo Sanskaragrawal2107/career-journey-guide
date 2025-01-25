@@ -34,9 +34,14 @@ export function ResumeManager() {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching resumes:', error);
+          throw error;
+        }
         
-        console.log('Fetched resumes:', data);
+        console.log('Raw resumes data:', data);
+        console.log('Resume drive_file_urls:', data?.map(r => ({ id: r.id, url: r.drive_file_url })));
+        
         return (data || []).map(item => ({
           id: item.id,
           file_path: item.file_path,
@@ -45,7 +50,7 @@ export function ResumeManager() {
           analysis_result: item.analysis_result as { optimized_content?: string } | null
         }));
       } catch (error) {
-        console.error('Error fetching resumes:', error);
+        console.error('Error in queryFn:', error);
         toast({
           title: "Error",
           description: "Failed to fetch resumes",
@@ -87,18 +92,20 @@ export function ResumeManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      console.log('Uploading resume for user:', user.id);
+      console.log('Starting resume upload for user:', user.id);
       await ensureProfileExists(user.id, user.email || '');
 
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
       
+      console.log('Uploading file to storage:', filePath);
       const { error: uploadError } = await supabase.storage
         .from('resumes')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
+      console.log('File uploaded to storage, creating database record');
       const { error: dbError } = await supabase
         .from('resumes')
         .insert({
@@ -108,15 +115,15 @@ export function ResumeManager() {
 
       if (dbError) throw dbError;
 
-      console.log('Resume uploaded successfully');
+      console.log('Resume upload completed successfully');
       toast({
         title: "Success",
         description: "Resume uploaded successfully",
       });
 
-      refetch(); // Manually refetch after upload
+      refetch();
     } catch (error) {
-      console.error('Error uploading resume:', error);
+      console.error('Error in uploadResume:', error);
       toast({
         title: "Error",
         description: "Failed to upload resume",
@@ -189,7 +196,11 @@ export function ResumeManager() {
           </TableHeader>
           <TableBody>
             {resumes.map((resume) => {
-              console.log('Rendering resume:', resume);
+              console.log('Rendering resume row:', {
+                id: resume.id,
+                drive_file_url: resume.drive_file_url,
+                created_at: resume.created_at
+              });
               return (
                 <TableRow key={resume.id}>
                   <TableCell className="flex items-center gap-2">
@@ -205,7 +216,10 @@ export function ResumeManager() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => window.open(resume.drive_file_url!, '_blank')}
+                        onClick={() => {
+                          console.log('Opening drive file URL:', resume.drive_file_url);
+                          window.open(resume.drive_file_url!, '_blank');
+                        }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
