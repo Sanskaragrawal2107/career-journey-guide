@@ -13,6 +13,7 @@ interface DashboardCardProps {
   className?: string;
   isProcessing?: boolean;
   acceptFile?: boolean;
+  routeNumber?: number | null;
 }
 
 export const DashboardCard = ({
@@ -23,6 +24,7 @@ export const DashboardCard = ({
   className,
   isProcessing = false,
   acceptFile = false,
+  routeNumber = null,
 }: DashboardCardProps) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -111,14 +113,15 @@ export const DashboardCard = ({
 
       const signedUrl = signedUrlData.signedUrl;
 
-      // Send both the Signed URL and resume ID to Make.com
+      // Send both the Signed URL, resume ID, and route number to Make.com
       const response = await fetch(
         "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
         {
           method: "POST",
           body: JSON.stringify({ 
             fileUrl: signedUrl,
-            resumeId: resumeData.id 
+            resumeId: resumeData.id,
+            routeNumber: routeNumber || 1 // Default to 1 for file upload
           }),
           headers: { "Content-Type": "application/json" },
         }
@@ -149,6 +152,14 @@ export const DashboardCard = ({
 
     if (title === "Create New Resume" && acceptFile) {
       fileInputRef.current?.click();
+    } else if (routeNumber && title !== "Previous Resumes" && title !== "Learning Courses") {
+      // Send request to Make.com for non-file actions
+      fetch("https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3", {
+        method: "POST",
+        body: JSON.stringify({ routeNumber }),
+        headers: { "Content-Type": "application/json" },
+      });
+      onClick();
     } else {
       onClick();
     }
