@@ -28,6 +28,7 @@ export function ResumeManager() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return [];
 
+        console.log('Fetching resumes for user:', user.id);
         const { data, error } = await supabase
           .from('resumes')
           .select('*')
@@ -35,6 +36,7 @@ export function ResumeManager() {
 
         if (error) throw error;
         
+        console.log('Fetched resumes:', data);
         return (data || []).map(item => ({
           id: item.id,
           file_path: item.file_path,
@@ -85,6 +87,7 @@ export function ResumeManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      console.log('Uploading resume for user:', user.id);
       await ensureProfileExists(user.id, user.email || '');
 
       const fileExt = file.name.split('.').pop();
@@ -105,6 +108,7 @@ export function ResumeManager() {
 
       if (dbError) throw dbError;
 
+      console.log('Resume uploaded successfully');
       toast({
         title: "Success",
         description: "Resume uploaded successfully",
@@ -125,6 +129,7 @@ export function ResumeManager() {
 
   async function deleteResume(id: string, filePath: string) {
     try {
+      console.log('Deleting resume:', id, filePath);
       const { error: storageError } = await supabase.storage
         .from('resumes')
         .remove([filePath]);
@@ -138,6 +143,7 @@ export function ResumeManager() {
 
       if (dbError) throw dbError;
 
+      console.log('Resume deleted successfully');
       toast({
         title: "Success",
         description: "Resume deleted successfully",
@@ -182,36 +188,39 @@ export function ResumeManager() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {resumes.map((resume) => (
-              <TableRow key={resume.id}>
-                <TableCell className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Resume {new Date(resume.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
-                <TableCell>
-                  {resume.drive_file_url ? 'Optimized' : 'Processing'}
-                </TableCell>
-                <TableCell className="space-x-2">
-                  {resume.drive_file_url && (
+            {resumes.map((resume) => {
+              console.log('Rendering resume:', resume);
+              return (
+                <TableRow key={resume.id}>
+                  <TableCell className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Resume {new Date(resume.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>{new Date(resume.created_at).toLocaleString()}</TableCell>
+                  <TableCell>
+                    {resume.drive_file_url ? 'Optimized' : 'Processing'}
+                  </TableCell>
+                  <TableCell className="space-x-2">
+                    {resume.drive_file_url && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(resume.drive_file_url!, '_blank')}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => window.open(resume.drive_file_url!, '_blank')}
+                      onClick={() => deleteResume(resume.id, resume.file_path)}
                     >
-                      <Download className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteResume(resume.id, resume.file_path)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       ) : (
