@@ -100,10 +100,7 @@ const Dashboard = () => {
                 Back to Dashboard
               </button>
             </div>
-            <ResumeManager onResumeSelect={(resumeId) => {
-              setSelectedResumeId(resumeId);
-              setShowResumeManager(false);
-            }} />
+            <ResumeManager />
           </div>
         ) : showLearningRoadmap && selectedResumeId ? (
           <div>
