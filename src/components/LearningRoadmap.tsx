@@ -13,11 +13,13 @@ interface Module {
   day: number;
 }
 
+interface RoadmapDay {
+  day: number;
+  modules: Module[];
+}
+
 interface RoadmapData {
-  days: {
-    day: number;
-    modules: Module[];
-  }[];
+  days: RoadmapDay[];
 }
 
 export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
@@ -49,8 +51,18 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
       return;
     }
 
-    if (roadmapData) {
-      setRoadmap(roadmapData.roadmap_data as RoadmapData);
+    if (roadmapData?.roadmap_data) {
+      // Explicitly type cast the data
+      const typedRoadmapData = roadmapData.roadmap_data as unknown as RoadmapData;
+      if (Array.isArray(typedRoadmapData.days)) {
+        setRoadmap(typedRoadmapData);
+      } else {
+        toast({
+          title: "Error",
+          description: "Invalid roadmap data format",
+          variant: "destructive",
+        });
+      }
     }
     setLoading(false);
   };
