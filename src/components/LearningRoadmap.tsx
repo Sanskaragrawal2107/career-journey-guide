@@ -1,151 +1,86 @@
 import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trophy } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-type Module = {
+interface Task {
   id: string;
   title: string;
   description: string;
+}
+
+interface DayPlan {
   day: number;
+  tasks: Task[];
 }
 
-type RoadmapDay = {
-  day: number;
-  modules: Module[];
+interface RoadmapData {
+  days: DayPlan[];
 }
 
-type RoadmapData = {
-  days: RoadmapDay[];
-}
-
-export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
+export function LearningRoadmap({ resumeId }: { resumeId: string }) {
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
-  const [completedModules, setCompletedModules] = useState<string[]>([]);
-  const [badges, setBadges] = useState<string[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchRoadmapData();
-    fetchUserProgress();
-    fetchUserBadges();
+    fetchRoadmap();
   }, [resumeId]);
 
-  const fetchRoadmapData = async () => {
-    const { data: roadmapData, error } = await supabase
-      .from("learning_roadmaps")
-      .select("roadmap_data")
-      .eq("resume_id", resumeId)
-      .maybeSingle();
+  const fetchRoadmap = async () => {
+    try {
+      const { data: pathData, error } = await supabase
+        .from("career_paths")
+        .select("recommendations, progress")
+        .eq("resume_id", resumeId)
+        .single();
 
-    if (error) {
+      if (error) throw error;
+
+      if (pathData) {
+        setRoadmap(pathData.recommendations as RoadmapData);
+        setCompletedTasks(pathData.progress as string[] || []);
+      }
+    } catch (error) {
+      console.error("Error fetching roadmap:", error);
       toast({
         title: "Error",
         description: "Failed to load roadmap data",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (roadmapData?.roadmap_data) {
-      const typedRoadmapData = roadmapData.roadmap_data as unknown as RoadmapData;
-      if (Array.isArray(typedRoadmapData.days)) {
-        setRoadmap(typedRoadmapData);
-      } else {
-        toast({
-          title: "Error",
-          description: "Invalid roadmap data format",
-          variant: "destructive",
-        });
-      }
-    }
-    setLoading(false);
   };
 
-  const fetchUserProgress = async () => {
-    const { data: progress, error } = await supabase
-      .from("module_progress")
-      .select("module_id")
-      .eq("resume_id", resumeId);
-
-    if (error) {
-      console.error("Error fetching progress:", error);
-      return;
-    }
-
-    setCompletedModules(progress?.map((p) => p.module_id) || []);
-  };
-
-  const fetchUserBadges = async () => {
-    const { data: userBadges, error } = await supabase
-      .from("user_badges")
-      .select("badge_type");
-
-    if (error) {
-      console.error("Error fetching badges:", error);
-      return;
-    }
-
-    setBadges(userBadges?.map((b) => b.badge_type) || []);
-  };
-
-  const handleModuleCompletion = async (moduleId: string, completed: boolean) => {
+  const handleTaskCompletion = async (taskId: string, completed: boolean) => {
     if (!completed) return;
 
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
-
     try {
-      const { error: progressError } = await supabase
-        .from("module_progress")
-        .insert({
-          user_id: user.user.id,
-          module_id: moduleId,
-          roadmap_id: resumeId,
-        });
+      const newCompletedTasks = [...completedTasks, taskId];
+      
+      const { error } = await supabase
+        .from("career_paths")
+        .update({ progress: newCompletedTasks })
+        .eq("resume_id", resumeId);
 
-      if (progressError) throw progressError;
+      if (error) throw error;
 
-      const dayModules = roadmap?.days.flatMap(d => d.modules) || [];
-      const dayCompleted = dayModules
-        .filter(m => m.day === dayModules.find(dm => dm.id === moduleId)?.day)
-        .every(m => completedModules.includes(m.id) || m.id === moduleId);
-
-      if (dayCompleted) {
-        const badgeType = `day_${dayModules.find(m => m.id === moduleId)?.day}_complete`;
-        
-        if (!badges.includes(badgeType)) {
-          const { error: badgeError } = await supabase
-            .from("user_badges")
-            .insert({
-              user_id: user.user.id,
-              badge_type: badgeType,
-            });
-
-          if (badgeError) throw badgeError;
-
-          setBadges([...badges, badgeType]);
-          toast({
-            title: "Badge Earned! 🎉",
-            description: `You've completed all modules for day ${dayModules.find(m => m.id === moduleId)?.day}!`,
-          });
-        }
-      }
-
-      setCompletedModules([...completedModules, moduleId]);
+      setCompletedTasks(newCompletedTasks);
       toast({
-        title: "Progress Saved",
-        description: "Module marked as completed",
+        title: "Progress Updated",
+        description: "Task marked as completed",
       });
     } catch (error) {
       console.error("Error updating progress:", error);
       toast({
         title: "Error",
-        description: "Failed to save progress",
+        description: "Failed to update progress",
         variant: "destructive",
       });
     }
@@ -167,36 +102,45 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
     );
   }
 
+  const totalTasks = roadmap.days.reduce(
+    (acc, day) => acc + day.tasks.length,
+    0
+  );
+  const progress = (completedTasks.length / totalTasks) * 100;
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap gap-4 mb-6">
-        {badges.map((badge) => (
-          <Badge key={badge} variant="secondary" className="flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            {badge.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Overall Progress</h3>
+          <Badge variant="secondary">
+            {completedTasks.length} / {totalTasks} Tasks
           </Badge>
-        ))}
+        </div>
+        <Progress value={progress} className="w-full" />
       </div>
 
       {roadmap.days.map((day) => (
         <Card key={day.day} className="p-6">
           <h3 className="text-lg font-semibold mb-4">Day {day.day}</h3>
           <div className="space-y-4">
-            {day.modules.map((module) => (
-              <div key={module.id} className="flex items-start space-x-3">
+            {day.tasks.map((task) => (
+              <div key={task.id} className="flex items-start space-x-3">
                 <Checkbox
-                  id={module.id}
-                  checked={completedModules.includes(module.id)}
-                  onCheckedChange={(checked) => handleModuleCompletion(module.id, checked as boolean)}
+                  id={task.id}
+                  checked={completedTasks.includes(task.id)}
+                  onCheckedChange={(checked) =>
+                    handleTaskCompletion(task.id, checked as boolean)
+                  }
                 />
                 <div>
                   <label
-                    htmlFor={module.id}
+                    htmlFor={task.id}
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    {module.title}
+                    {task.title}
                   </label>
-                  <p className="text-sm text-gray-500">{module.description}</p>
+                  <p className="text-sm text-gray-500">{task.description}</p>
                 </div>
               </div>
             ))}
@@ -205,4 +149,4 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
       ))}
     </div>
   );
-};
+}
