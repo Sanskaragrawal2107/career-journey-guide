@@ -3,15 +3,40 @@ import { DashboardCard } from "@/components/DashboardCard";
 import { FileText, TrendingUp, BookOpen, Target, History } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ResumeManager } from "@/components/ResumeManager";
+import { LearningRoadmap } from "@/components/LearningRoadmap";
 
 const Dashboard = () => {
   const { toast } = useToast();
   const [showResumeManager, setShowResumeManager] = useState(false);
+  const [showLearningRoadmap, setShowLearningRoadmap] = useState(false);
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
 
   const handleUpload = async () => {
+    const response = await fetch(
+      "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "career_path",
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      toast({
+        title: "Error",
+        description: "Failed to process request",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
-      title: "Coming Soon",
-      description: "This feature will be available in the next update!",
+      title: "Success",
+      description: "Request processed successfully",
     });
   };
 
@@ -20,7 +45,7 @@ const Dashboard = () => {
       title: "Create New Resume",
       description: "Upload your resume for AI optimization",
       icon: <FileText className="w-6 h-6 text-primary" />,
-      onClick: () => {}, // This will be handled by DashboardCard's internal logic
+      onClick: () => {},
       acceptFile: true,
     },
     {
@@ -45,7 +70,17 @@ const Dashboard = () => {
       title: "Learning Courses",
       description: "Access curated learning resources",
       icon: <BookOpen className="w-6 h-6 text-primary" />,
-      onClick: handleUpload,
+      onClick: () => {
+        if (selectedResumeId) {
+          setShowLearningRoadmap(true);
+        } else {
+          toast({
+            title: "No Resume Selected",
+            description: "Please upload or select a resume first",
+            variant: "destructive",
+          });
+        }
+      },
     },
   ];
 
@@ -65,7 +100,23 @@ const Dashboard = () => {
                 Back to Dashboard
               </button>
             </div>
-            <ResumeManager />
+            <ResumeManager onResumeSelect={(resumeId) => {
+              setSelectedResumeId(resumeId);
+              setShowResumeManager(false);
+            }} />
+          </div>
+        ) : showLearningRoadmap && selectedResumeId ? (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Learning Roadmap</h2>
+              <button
+                onClick={() => setShowLearningRoadmap(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <LearningRoadmap resumeId={selectedResumeId} />
           </div>
         ) : (
           <div>
