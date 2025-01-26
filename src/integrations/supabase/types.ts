@@ -12,21 +12,27 @@ export type Database = {
       career_paths: {
         Row: {
           created_at: string | null
+          days_to_complete: number | null
           id: string
+          progress: Json | null
           recommendations: Json
           resume_id: string
           user_id: string
         }
         Insert: {
           created_at?: string | null
+          days_to_complete?: number | null
           id?: string
+          progress?: Json | null
           recommendations: Json
           resume_id: string
           user_id: string
         }
         Update: {
           created_at?: string | null
+          days_to_complete?: number | null
           id?: string
+          progress?: Json | null
           recommendations?: Json
           resume_id?: string
           user_id?: string

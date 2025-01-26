@@ -4,41 +4,14 @@ import { FileText, TrendingUp, BookOpen, Target, History } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ResumeManager } from "@/components/ResumeManager";
 import { LearningRoadmap } from "@/components/LearningRoadmap";
+import { CareerPathUploader } from "@/components/CareerPathUploader";
 
 const Dashboard = () => {
   const { toast } = useToast();
   const [showResumeManager, setShowResumeManager] = useState(false);
   const [showLearningRoadmap, setShowLearningRoadmap] = useState(false);
+  const [showCareerPath, setShowCareerPath] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
-
-  const handleUpload = async () => {
-    const response = await fetch(
-      "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "career_path",
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      toast({
-        title: "Error",
-        description: "Failed to process request",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Success",
-      description: "Request processed successfully",
-    });
-  };
 
   const dashboardItems = [
     {
@@ -58,13 +31,14 @@ const Dashboard = () => {
       title: "Skill Gap Analysis",
       description: "Identify skills needed for your dream role",
       icon: <Target className="w-6 h-6 text-primary" />,
-      onClick: handleUpload,
+      onClick: () => {},
+      acceptFile: true,
     },
     {
       title: "Career Path Suggestions",
       description: "Get personalized career recommendations",
       icon: <TrendingUp className="w-6 h-6 text-primary" />,
-      onClick: handleUpload,
+      onClick: () => setShowCareerPath(true),
     },
     {
       title: "Learning Courses",
@@ -114,6 +88,19 @@ const Dashboard = () => {
               </button>
             </div>
             <LearningRoadmap resumeId={selectedResumeId} />
+          </div>
+        ) : showCareerPath ? (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Career Path Suggestions</h2>
+              <button
+                onClick={() => setShowCareerPath(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <CareerPathUploader />
           </div>
         ) : (
           <div>
