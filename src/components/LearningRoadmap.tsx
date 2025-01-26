@@ -6,19 +6,19 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trophy } from "lucide-react";
 
-interface Module {
+type Module = {
   id: string;
   title: string;
   description: string;
   day: number;
 }
 
-interface RoadmapDay {
+type RoadmapDay = {
   day: number;
   modules: Module[];
 }
 
-interface RoadmapData {
+type RoadmapData = {
   days: RoadmapDay[];
 }
 
@@ -52,7 +52,6 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
     }
 
     if (roadmapData?.roadmap_data) {
-      // Explicitly type cast the data
       const typedRoadmapData = roadmapData.roadmap_data as unknown as RoadmapData;
       if (Array.isArray(typedRoadmapData.days)) {
         setRoadmap(typedRoadmapData);
@@ -95,13 +94,12 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
   };
 
   const handleModuleCompletion = async (moduleId: string, completed: boolean) => {
-    if (!completed) return; // We only handle completion, not un-completion
+    if (!completed) return;
 
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) return;
 
     try {
-      // Record module completion
       const { error: progressError } = await supabase
         .from("module_progress")
         .insert({
@@ -112,7 +110,6 @@ export const LearningRoadmap = ({ resumeId }: { resumeId: string }) => {
 
       if (progressError) throw progressError;
 
-      // Check if badge should be awarded
       const dayModules = roadmap?.days.flatMap(d => d.modules) || [];
       const dayCompleted = dayModules
         .filter(m => m.day === dayModules.find(dm => dm.id === moduleId)?.day)
