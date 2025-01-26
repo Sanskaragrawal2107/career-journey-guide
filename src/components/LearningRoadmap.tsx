@@ -43,8 +43,14 @@ export function LearningRoadmap({ resumeId }: { resumeId: string }) {
       if (error) throw error;
 
       if (pathData) {
-        setRoadmap(pathData.recommendations as RoadmapData);
-        setCompletedTasks(pathData.progress as string[] || []);
+        // Type assertion to ensure recommendations matches RoadmapData structure
+        const recommendations = pathData.recommendations as unknown as RoadmapData;
+        if (isValidRoadmapData(recommendations)) {
+          setRoadmap(recommendations);
+          setCompletedTasks((pathData.progress as string[]) || []);
+        } else {
+          throw new Error("Invalid roadmap data structure");
+        }
       }
     } catch (error) {
       console.error("Error fetching roadmap:", error);
@@ -56,6 +62,25 @@ export function LearningRoadmap({ resumeId }: { resumeId: string }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Type guard to validate roadmap data structure
+  const isValidRoadmapData = (data: any): data is RoadmapData => {
+    return (
+      data &&
+      Array.isArray(data.days) &&
+      data.days.every(
+        (day: any) =>
+          typeof day.day === "number" &&
+          Array.isArray(day.tasks) &&
+          day.tasks.every(
+            (task: any) =>
+              typeof task.id === "string" &&
+              typeof task.title === "string" &&
+              typeof task.description === "string"
+          )
+      )
+    );
   };
 
   const handleTaskCompletion = async (taskId: string, completed: boolean) => {
