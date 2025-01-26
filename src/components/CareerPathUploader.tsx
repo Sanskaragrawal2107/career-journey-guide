@@ -76,7 +76,7 @@ export function CareerPathUploader() {
 
       // Send to Make.com webhook
       const response = await fetch(
-        "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
+        "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

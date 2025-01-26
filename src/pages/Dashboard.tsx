@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ResumeManager } from "@/components/ResumeManager";
 import { LearningRoadmap } from "@/components/LearningRoadmap";
 import { CareerPathUploader } from "@/components/CareerPathUploader";
+import { CareerPathProgress } from "@/components/CareerPathProgress";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -92,7 +93,7 @@ const Dashboard = () => {
         ) : showCareerPath ? (
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Career Path Suggestions</h2>
+              <h2 className="text-xl font-semibold">Career Path</h2>
               <button
                 onClick={() => setShowCareerPath(false)}
                 className="text-sm text-gray-600 hover:text-gray-900"
@@ -100,7 +101,11 @@ const Dashboard = () => {
                 Back to Dashboard
               </button>
             </div>
-            <CareerPathUploader />
+            {selectedResumeId ? (
+              <CareerPathProgress resumeId={selectedResumeId} />
+            ) : (
+              <CareerPathUploader />
+            )}
           </div>
         ) : (
           <div>
