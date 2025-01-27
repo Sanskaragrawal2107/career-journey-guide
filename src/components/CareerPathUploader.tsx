@@ -30,6 +30,10 @@ export function CareerPathUploader() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (loading) return;
+    
     if (!file) {
       toast({
         title: "No file selected",
@@ -105,7 +109,10 @@ export function CareerPathUploader() {
 
       if (careerPathError) throw careerPathError;
 
-      // Send to Make.com webhook
+      // Send to Make.com webhook with AbortController to prevent duplicate requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch(
         "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
         {
@@ -116,8 +123,11 @@ export function CareerPathUploader() {
             resumeId: resumeData.id,
             daysToComplete: days,
           }),
+          signal: controller.signal
         }
       );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error("Failed to process career path");
 
@@ -129,12 +139,16 @@ export function CareerPathUploader() {
       });
 
     } catch (error) {
-      console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to process career path",
-        variant: "destructive",
-      });
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+      } else {
+        console.error("Error:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to process career path",
+          variant: "destructive",
+        });
+      }
       setProgress(0);
     } finally {
       setLoading(false);
