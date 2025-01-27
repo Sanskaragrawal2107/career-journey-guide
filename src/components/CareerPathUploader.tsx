@@ -1,30 +1,41 @@
-import { useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Upload, CheckCircle2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+import { CareerPathProgress } from "./CareerPathProgress";
 
-export function CareerPathUploader() {
+export const CareerPathUploader = () => {
   const [file, setFile] = useState<File | null>(null);
   const [days, setDays] = useState<number>(30);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<number>(0);
+  const [progress, setProgress] = useState(0);
+  const [existingResumeId, setExistingResumeId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.type === "application/pdf") {
-      setFile(selectedFile);
-    } else {
-      toast({
-        title: "Invalid file",
-        description: "Please upload a PDF file",
-        variant: "destructive",
-      });
+  useEffect(() => {
+    checkExistingResumes();
+  }, []);
+
+  const checkExistingResumes = async () => {
+    try {
+      const { data: resumes, error } = await supabase
+        .from("resumes")
+        .select("id, career_paths(recommendations)")
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (resumes && resumes.length > 0 && resumes[0].career_paths?.length > 0) {
+        setExistingResumeId(resumes[0].id);
+      }
+    } catch (error) {
+      console.error("Error checking existing resumes:", error);
     }
   };
 
@@ -43,28 +54,57 @@ export function CareerPathUploader() {
       return;
     }
 
-    setLoading(true);
-    setProgress(0);
-    
-    try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      // Upload file to Supabase Storage
+    setLoading(true);
+    setProgress(10);
+
+    try {
+      // Get user data
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      // Ensure profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select()
+        .eq("id", user.id)
+        .single();
+
+      if (!profile) {
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            email: user.email,
+          });
+
+        if (insertError) throw new Error("Failed to create profile");
+      } else if (profileError && profileError.code !== "PGRST116") {
+        throw profileError;
+      }
+
+      setProgress(30);
+
+      // Upload file
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
-      
-      setProgress(20);
-      
+
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) throw new Error("Failed to upload file");
 
-      setProgress(40);
+      setProgress(50);
 
       // Create resume record
       const { data: resumeData, error: resumeError } = await supabase
@@ -76,35 +116,18 @@ export function CareerPathUploader() {
         .select()
         .single();
 
-      if (resumeError || !resumeData) throw resumeError;
+      if (resumeError || !resumeData) throw new Error("Failed to create resume record");
 
-      setProgress(60);
+      setProgress(70);
 
-      // Generate signed URL
-      const { data: urlData, error: urlError } = await supabase.storage
-        .from("resumes")
-        .createSignedUrl(filePath, 120);
-
-      if (urlError || !urlData) throw urlError;
-
-      setProgress(80);
-
-      // Create career path record with initial empty structure
-      const initialRecommendations = {
-        days: Array.from({ length: days }, (_, i) => ({
-          day: i + 1,
-          tasks: []
-        }))
-      };
-
+      // Create career path record
       const { error: careerPathError } = await supabase
         .from("career_paths")
         .insert({
           user_id: user.id,
           resume_id: resumeData.id,
+          recommendations: {},
           days_to_complete: days,
-          recommendations: initialRecommendations,
-          progress: []
         });
 
       if (careerPathError) throw careerPathError;
@@ -119,7 +142,7 @@ export function CareerPathUploader() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fileUrl: urlData.signedUrl,
+            fileUrl: `${filePath}`,
             resumeId: resumeData.id,
             daysToComplete: days,
           }),
@@ -132,10 +155,11 @@ export function CareerPathUploader() {
       if (!response.ok) throw new Error("Failed to process career path");
 
       setProgress(100);
-      
+      setExistingResumeId(resumeData.id);
+
       toast({
         title: "Success",
-        description: "Career path request submitted successfully. Please wait while we process your resume.",
+        description: "Career path is being generated. Please wait a moment.",
       });
 
     } catch (error) {
@@ -155,66 +179,46 @@ export function CareerPathUploader() {
     }
   };
 
+  if (existingResumeId) {
+    return <CareerPathProgress resumeId={existingResumeId} />;
+  }
+
   return (
     <Card className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
+        <div>
           <Label htmlFor="resume">Upload Resume (PDF)</Label>
           <Input
             id="resume"
             type="file"
             accept=".pdf"
-            onChange={handleFileChange}
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
             disabled={loading}
           />
         </div>
-        
-        <div className="space-y-2">
+        <div>
           <Label htmlFor="days">Days to Complete</Label>
           <Input
             id="days"
             type="number"
-            min="1"
+            min={1}
             value={days}
             onChange={(e) => setDays(parseInt(e.target.value))}
             disabled={loading}
           />
         </div>
-
-        {progress > 0 && (
-          <div className="space-y-2">
-            <Progress value={progress} className="w-full" />
-            <p className="text-sm text-gray-500 text-center">
-              {progress === 100 
-                ? "Processing your career path..."
-                : "Uploading your resume..."}
-            </p>
-          </div>
-        )}
-
-        <Button
-          type="submit"
-          disabled={loading || !file}
-          className="w-full"
-        >
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...
             </>
-          ) : progress === 100 ? (
-            <>
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Processing Resume
-            </>
           ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Get Career Path
-            </>
+            "Get Career Path"
           )}
         </Button>
+        {loading && <Progress value={progress} className="w-full" />}
       </form>
     </Card>
   );
-}
+};
