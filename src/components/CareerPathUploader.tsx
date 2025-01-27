@@ -40,7 +40,10 @@ export function CareerPathUploader() {
     }
 
     setLoading(true);
+    setProgress(0);
+    
     try {
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
@@ -49,11 +52,15 @@ export function CareerPathUploader() {
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
+      setProgress(20);
+      
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
+
+      setProgress(40);
 
       // Create resume record
       const { data: resumeData, error: resumeError } = await supabase
@@ -67,12 +74,29 @@ export function CareerPathUploader() {
 
       if (resumeError || !resumeData) throw resumeError;
 
+      setProgress(60);
+
       // Generate signed URL
       const { data: urlData, error: urlError } = await supabase.storage
         .from("resumes")
         .createSignedUrl(filePath, 120);
 
       if (urlError || !urlData) throw urlError;
+
+      setProgress(80);
+
+      // Create career path record
+      const { error: careerPathError } = await supabase
+        .from("career_paths")
+        .insert({
+          user_id: user.id,
+          resume_id: resumeData.id,
+          days_to_complete: days,
+          recommendations: null, // Will be updated by Make.com
+          progress: []
+        });
+
+      if (careerPathError) throw careerPathError;
 
       // Send to Make.com webhook
       const response = await fetch(
@@ -90,22 +114,12 @@ export function CareerPathUploader() {
 
       if (!response.ok) throw new Error("Failed to process career path");
 
+      setProgress(100);
+      
       toast({
         title: "Success",
-        description: "Career path request submitted successfully",
+        description: "Career path request submitted successfully. Please wait while we process your resume.",
       });
-
-      // Start progress tracking
-      setProgress(25);
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 25;
-        });
-      }, 1000);
 
     } catch (error) {
       console.error("Error:", error);
@@ -114,6 +128,7 @@ export function CareerPathUploader() {
         description: error.message || "Failed to process career path",
         variant: "destructive",
       });
+      setProgress(0);
     } finally {
       setLoading(false);
     }
@@ -149,7 +164,9 @@ export function CareerPathUploader() {
           <div className="space-y-2">
             <Progress value={progress} className="w-full" />
             <p className="text-sm text-gray-500 text-center">
-              Processing your career path...
+              {progress === 100 
+                ? "Processing your career path..."
+                : "Uploading your resume..."}
             </p>
           </div>
         )}
@@ -167,7 +184,7 @@ export function CareerPathUploader() {
           ) : progress === 100 ? (
             <>
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              Completed
+              Processing Resume
             </>
           ) : (
             <>
