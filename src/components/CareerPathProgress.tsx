@@ -32,20 +32,21 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   useEffect(() => {
     fetchCareerPath();
+    console.log("Fetching career path...");
 
     // Set up real-time subscription
     const channel = supabase
-      .channel('career-path-changes')
+      .channel("career-path-changes")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'career_paths',
-          filter: `resume_id=eq.${resumeId}`
+          event: "*",
+          schema: "public",
+          table: "career_paths",
+          filter: `resume_id=eq.${resumeId}`,
         },
         (payload: RealtimePostgresChangesPayload<CareerPathRecord>) => {
-          console.log('Real-time update received:', payload);
+          console.log("Real-time update received:", payload);
           const newData = payload.new as CareerPathRecord;
           if (newData?.recommendations) {
             setCareerPath(newData.recommendations);
@@ -62,6 +63,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   const fetchCareerPath = async () => {
     try {
+      console.log("Fetching career path for resumeId:", resumeId);
       const { data: pathData, error } = await supabase
         .from("career_paths")
         .select("recommendations, progress")
@@ -71,6 +73,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       if (error) throw error;
 
       if (pathData) {
+        console.log("Career path data:", pathData);
         setCareerPath(pathData.recommendations as CareerPathData);
         setCompletedTasks(pathData.progress as string[] || []);
       }
@@ -83,34 +86,6 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleTaskCompletion = async (taskId: string, completed: boolean) => {
-    if (!completed) return;
-
-    try {
-      const newCompletedTasks = [...completedTasks, taskId];
-      
-      const { error } = await supabase
-        .from("career_paths")
-        .update({ progress: newCompletedTasks })
-        .eq("resume_id", resumeId);
-
-      if (error) throw error;
-
-      setCompletedTasks(newCompletedTasks);
-      toast({
-        title: "Progress Updated",
-        description: "Task marked as completed",
-      });
-    } catch (error) {
-      console.error("Error updating progress:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update progress",
-        variant: "destructive",
-      });
     }
   };
 
