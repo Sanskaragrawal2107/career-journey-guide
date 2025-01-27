@@ -101,3 +101,13 @@ export const CareerPathProgress = ({ resumeId }: { resumeId: string }) => {
     </Card>
   );
 };
+
+// Add the CareerPathUploader component and export it
+export const CareerPathUploader = () => {
+  return (
+    <div>
+      <h2>Career Path Uploader</h2>
+      {/* Add your uploader implementation here */}
+    </div>
+  );
+};
