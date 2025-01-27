@@ -46,9 +46,10 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         },
         (payload: RealtimePostgresChangesPayload<CareerPathRecord>) => {
           console.log('Real-time update received:', payload);
-          if (payload.new && payload.new.recommendations) {
-            setCareerPath(payload.new.recommendations);
-            setCompletedTasks(payload.new.progress || []);
+          const newData = payload.new as CareerPathRecord;
+          if (newData?.recommendations) {
+            setCareerPath(newData.recommendations);
+            setCompletedTasks(newData.progress || []);
           }
         }
       )
