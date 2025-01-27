@@ -122,7 +122,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     );
   }
 
-  if (!careerPath || !careerPath.days) {
+  if (!careerPath) {
     return (
       <div className="text-center p-8">
         <p>No career path available yet. Please check back later.</p>
@@ -131,11 +131,10 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   }
 
   const totalTasks = careerPath.days.reduce(
-    (acc, day) => acc + (day.tasks?.length || 0),
+    (acc, day) => acc + day.tasks.length,
     0
   );
-  
-  const progress = totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0;
+  const progress = (completedTasks.length / totalTasks) * 100;
 
   return (
     <div className="space-y-6">
@@ -153,7 +152,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         <Card key={day.day} className="p-6">
           <h3 className="text-lg font-semibold mb-4">Day {day.day}</h3>
           <div className="space-y-4">
-            {day.tasks?.map((task) => (
+            {day.tasks.map((task) => (
               <div key={task.id} className="flex items-start space-x-3">
                 <Checkbox
                   id={task.id}
