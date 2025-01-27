@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CareerPathData = {
   days: Array<{
@@ -16,6 +17,11 @@ type CareerPathData = {
       description: string;
     }>;
   }>;
+};
+
+type CareerPathRecord = {
+  recommendations: CareerPathData;
+  progress: string[];
 };
 
 export function CareerPathProgress({ resumeId }: { resumeId: string }) {
@@ -38,12 +44,11 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
           table: 'career_paths',
           filter: `resume_id=eq.${resumeId}`
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<CareerPathRecord>) => {
           console.log('Real-time update received:', payload);
-          if (payload.new) {
-            // Update the career path data when changes occur
-            setCareerPath(payload.new.recommendations as CareerPathData);
-            setCompletedTasks(payload.new.progress as string[] || []);
+          if (payload.new && payload.new.recommendations) {
+            setCareerPath(payload.new.recommendations);
+            setCompletedTasks(payload.new.progress || []);
           }
         }
       )
