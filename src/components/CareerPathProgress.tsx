@@ -26,6 +26,32 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   useEffect(() => {
     fetchCareerPath();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('career-path-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'career_paths',
+          filter: `resume_id=eq.${resumeId}`
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          if (payload.new) {
+            // Update the career path data when changes occur
+            setCareerPath(payload.new.recommendations as CareerPathData);
+            setCompletedTasks(payload.new.progress as string[] || []);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [resumeId]);
 
   const fetchCareerPath = async () => {
