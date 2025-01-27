@@ -85,14 +85,21 @@ export function CareerPathUploader() {
 
       setProgress(80);
 
-      // Create career path record
+      // Create career path record with initial empty structure
+      const initialRecommendations = {
+        days: Array.from({ length: days }, (_, i) => ({
+          day: i + 1,
+          tasks: []
+        }))
+      };
+
       const { error: careerPathError } = await supabase
         .from("career_paths")
         .insert({
           user_id: user.id,
           resume_id: resumeData.id,
           days_to_complete: days,
-          recommendations: null, // Will be updated by Make.com
+          recommendations: initialRecommendations,
           progress: []
         });
 
