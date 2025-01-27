@@ -32,21 +32,20 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   useEffect(() => {
     fetchCareerPath();
-    console.log("Fetching career path...");
 
     // Set up real-time subscription
     const channel = supabase
-      .channel("career-path-changes")
+      .channel('career-path-changes')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "*",
-          schema: "public",
-          table: "career_paths",
-          filter: `resume_id=eq.${resumeId}`,
+          event: '*',
+          schema: 'public',
+          table: 'career_paths',
+          filter: `resume_id=eq.${resumeId}`
         },
         (payload: RealtimePostgresChangesPayload<CareerPathRecord>) => {
-          console.log("Real-time update received:", payload);
+          console.log('Real-time update received:', payload);
           const newData = payload.new as CareerPathRecord;
           if (newData?.recommendations) {
             setCareerPath(newData.recommendations);
@@ -63,7 +62,6 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   const fetchCareerPath = async () => {
     try {
-      console.log("Fetching career path for resumeId:", resumeId);
       const { data: pathData, error } = await supabase
         .from("career_paths")
         .select("recommendations, progress")
@@ -73,7 +71,6 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       if (error) throw error;
 
       if (pathData) {
-        console.log("Career path data:", pathData);
         setCareerPath(pathData.recommendations as CareerPathData);
         setCompletedTasks(pathData.progress as string[] || []);
       }
@@ -89,6 +86,34 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     }
   };
 
+  const handleTaskCompletion = async (taskId: string, completed: boolean) => {
+    if (!completed) return;
+
+    try {
+      const newCompletedTasks = [...completedTasks, taskId];
+      
+      const { error } = await supabase
+        .from("career_paths")
+        .update({ progress: newCompletedTasks })
+        .eq("resume_id", resumeId);
+
+      if (error) throw error;
+
+      setCompletedTasks(newCompletedTasks);
+      toast({
+        title: "Progress Updated",
+        description: "Task marked as completed",
+      });
+    } catch (error) {
+      console.error("Error updating progress:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update progress",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -97,7 +122,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     );
   }
 
-  if (!careerPath || !careerPath.days) {
+  if (!careerPath) {
     return (
       <div className="text-center p-8">
         <p>No career path available yet. Please check back later.</p>
@@ -106,10 +131,10 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   }
 
   const totalTasks = careerPath.days.reduce(
-    (acc, day) => acc + (day.tasks?.length || 0),
+    (acc, day) => acc + day.tasks.length,
     0
   );
-  const progress = totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0;
+  const progress = (completedTasks.length / totalTasks) * 100;
 
   return (
     <div className="space-y-6">
@@ -127,7 +152,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         <Card key={day.day} className="p-6">
           <h3 className="text-lg font-semibold mb-4">Day {day.day}</h3>
           <div className="space-y-4">
-            {day.tasks?.map((task) => (
+            {day.tasks.map((task) => (
               <div key={task.id} className="flex items-start space-x-3">
                 <Checkbox
                   id={task.id}

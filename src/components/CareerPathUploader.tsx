@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { CareerPathProgress } from "./CareerPathProgress";  // Import career path progress tracker
+import { CareerPathProgress } from "./CareerPathProgress";
 
 export const CareerPathUploader = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -21,7 +21,6 @@ export const CareerPathUploader = () => {
     checkExistingResumes();
   }, []);
 
-  // Check if there is an existing resume record in the database
   const checkExistingResumes = async () => {
     try {
       const { data: resumes, error } = await supabase
@@ -180,12 +179,10 @@ export const CareerPathUploader = () => {
     }
   };
 
-  // Show CareerPathProgress if a resume is already uploaded
   if (existingResumeId) {
     return <CareerPathProgress resumeId={existingResumeId} />;
   }
 
-  // Otherwise show PDF upload form
   return (
     <Card className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
