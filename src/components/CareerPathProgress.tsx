@@ -55,18 +55,21 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         },
         (payload: RealtimePostgresChangesPayload<CareerPathRecord>) => {
           console.log('Real-time update received:', payload);
-          if (payload.new && 'recommendations' in payload.new) {
+          if (payload.new && 'recommendations' in payload.new && payload.eventType !== 'DELETE') {
             setCareerPath(payload.new.recommendations);
             setCompletedTasks(payload.new.progress || []);
             setLastCompletedAt(payload.new.last_completed_at || null);
             setNoCareerPath(false);
+          } else if (payload.eventType === 'DELETE') {
+            setNoCareerPath(true);
+            setCareerPath(null);
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
   }, [resumeId]);
 
@@ -179,8 +182,8 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         description: "Career path deleted successfully",
       });
 
-      // Force reload to show upload component
-      window.location.reload();
+      setNoCareerPath(true);
+      setCareerPath(null);
     } catch (error) {
       console.error("Error deleting career path:", error);
       toast({
@@ -200,7 +203,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   }
 
   if (noCareerPath || !careerPath?.days) {
-    return <CareerPathUploader />;
+    return <CareerPathUploader resumeId={resumeId} />;
   }
 
   const totalTasks = careerPath.days.reduce(
