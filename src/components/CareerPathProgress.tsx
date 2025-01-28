@@ -23,7 +23,12 @@ type CareerPathData = {
 type CareerPathRecord = {
   recommendations: CareerPathData;
   progress: string[];
-  last_completed_at?: string;
+  last_completed_at?: string | null;
+  id?: string;
+  user_id?: string;
+  resume_id?: string;
+  created_at?: string | null;
+  days_to_complete?: number | null;
 };
 
 export function CareerPathProgress({ resumeId }: { resumeId: string }) {
