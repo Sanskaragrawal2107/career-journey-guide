@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trash2 } from "lucide-react";
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { CareerPathUploader } from "./CareerPathUploader";
 
 type CareerPathData = {
   days: Array<{
@@ -36,6 +37,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [lastCompletedAt, setLastCompletedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [noCareerPath, setNoCareerPath] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,6 +59,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
             setCareerPath(payload.new.recommendations);
             setCompletedTasks(payload.new.progress || []);
             setLastCompletedAt(payload.new.last_completed_at || null);
+            setNoCareerPath(false);
           }
         }
       )
@@ -75,12 +78,19 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         .eq("resume_id", resumeId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') { // No rows returned
+          setNoCareerPath(true);
+        } else {
+          throw error;
+        }
+      }
 
       if (pathData) {
         setCareerPath(pathData.recommendations as CareerPathData);
         setCompletedTasks(pathData.progress as string[] || []);
         setLastCompletedAt(pathData.last_completed_at || null);
+        setNoCareerPath(false);
       }
     } catch (error) {
       console.error("Error fetching career path:", error);
@@ -189,12 +199,8 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     );
   }
 
-  if (!careerPath?.days) {
-    return (
-      <div className="text-center p-8">
-        <p>No career path available yet. Please check back later.</p>
-      </div>
-    );
+  if (noCareerPath || !careerPath?.days) {
+    return <CareerPathUploader />;
   }
 
   const totalTasks = careerPath.days.reduce(
