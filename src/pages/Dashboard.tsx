@@ -104,7 +104,7 @@ const Dashboard = () => {
             {selectedResumeId ? (
               <CareerPathProgress resumeId={selectedResumeId} />
             ) : (
-              <CareerPathUploader resumeId={selectedResumeId || ''} />
+              <CareerPathUploader />
             )}
           </div>
         ) : (

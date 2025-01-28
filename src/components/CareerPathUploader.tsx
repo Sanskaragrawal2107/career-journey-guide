@@ -1,152 +1,224 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+import { CareerPathProgress } from "./CareerPathProgress";
 
-interface CareerPathUploaderProps {
-  resumeId: string;
-}
-
-export function CareerPathUploader({ resumeId }: CareerPathUploaderProps) {
+export const CareerPathUploader = () => {
+  const [file, setFile] = useState<File | null>(null);
+  const [days, setDays] = useState<number>(30);
   const [loading, setLoading] = useState(false);
-  const [days, setDays] = useState("30");
+  const [progress, setProgress] = useState(0);
+  const [existingResumeId, setExistingResumeId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleFileUpload = async (file: File) => {
-    if (!file) return;
+  useEffect(() => {
+    checkExistingResumes();
+  }, []);
+
+  const checkExistingResumes = async () => {
+    try {
+      const { data: resumes, error } = await supabase
+        .from("resumes")
+        .select("id, career_paths(recommendations)")
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (resumes && resumes.length > 0 && resumes[0].career_paths?.length > 0) {
+        setExistingResumeId(resumes[0].id);
+      }
+    } catch (error) {
+      console.error("Error checking existing resumes:", error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Prevent double submission
+    if (loading) return;
+    
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please select a PDF file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (file.type !== "application/pdf") {
       toast({
-        title: "Error",
+        title: "Invalid file type",
         description: "Please upload a PDF file",
         variant: "destructive",
       });
       return;
     }
 
-    if (isNaN(Number(days)) || Number(days) <= 0) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid number of days",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
+    setProgress(10);
+
     try {
+      // Get user data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      // Upload file to Supabase Storage
+      // Ensure profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select()
+        .eq("id", user.id)
+        .single();
+
+      if (!profile) {
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            email: user.email,
+          });
+
+        if (insertError) throw new Error("Failed to create profile");
+      } else if (profileError && profileError.code !== "PGRST116") {
+        throw profileError;
+      }
+
+      setProgress(30);
+
+      // Upload file
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
 
-      if (uploadError) {
-        throw new Error("Failed to upload file to storage");
-      }
+      if (uploadError) throw new Error("Failed to upload file");
 
-      // Generate a Signed URL valid for 2 minutes
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      setProgress(50);
+
+      // Create resume record
+      const { data: resumeData, error: resumeError } = await supabase
         .from("resumes")
-        .createSignedUrl(filePath, 120);
+        .insert({
+          file_path: filePath,
+          user_id: user.id,
+        })
+        .select()
+        .single();
 
-      if (signedUrlError || !signedUrlData) {
-        throw new Error("Failed to generate Signed URL");
-      }
+      if (resumeError || !resumeData) throw new Error("Failed to create resume record");
 
-      console.log("Sending to webhook:", {
-        fileUrl: signedUrlData.signedUrl,
-        resumeId: resumeId,
-        daysToComplete: Number(days)
-      });
+      setProgress(70);
 
-      // Send the Signed URL to Make.com
+      // Create career path record
+      const { error: careerPathError } = await supabase
+        .from("career_paths")
+        .insert({
+          user_id: user.id,
+          resume_id: resumeData.id,
+          recommendations: {},
+          days_to_complete: days,
+        });
+
+      if (careerPathError) throw careerPathError;
+
+      // Send to Make.com webhook with AbortController to prevent duplicate requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch(
-        "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
+        "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
         {
           method: "POST",
-          body: JSON.stringify({ 
-            fileUrl: signedUrlData.signedUrl,
-            resumeId: resumeId,
-            daysToComplete: Number(days)
-          }),
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileUrl: `${filePath}`,
+            resumeId: resumeData.id,
+            daysToComplete: days,
+          }),
+          signal: controller.signal
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to process resume via Make.com");
-      }
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error("Failed to process career path");
+
+      setProgress(100);
+      setExistingResumeId(resumeData.id);
 
       toast({
         title: "Success",
-        description: "Career path will be generated shortly.",
+        description: "Career path is being generated. Please wait a moment.",
       });
+
     } catch (error) {
-      console.error("Error uploading file:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to upload file",
-        variant: "destructive",
-      });
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+      } else {
+        console.error("Error:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to process career path",
+          variant: "destructive",
+        });
+      }
+      setProgress(0);
     } finally {
       setLoading(false);
     }
   };
 
+  if (existingResumeId) {
+    return <CareerPathProgress resumeId={existingResumeId} />;
+  }
+
   return (
     <Card className="p-6">
-      <div className="text-center space-y-4">
-        <h3 className="text-lg font-semibold">No career path available yet</h3>
-        <p className="text-gray-500">Upload your resume to generate a personalized career path</p>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-full max-w-xs">
-            <Input
-              type="number"
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              placeholder="Number of days"
-              min="1"
-              className="text-center"
-            />
-          </div>
-          <input
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <Label htmlFor="resume">Upload Resume (PDF)</Label>
+          <Input
+            id="resume"
             type="file"
-            id="file-upload"
-            className="hidden"
             accept=".pdf"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileUpload(file);
-            }}
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            disabled={loading}
           />
-          <label htmlFor="file-upload">
-            <Button
-              disabled={loading}
-              className="cursor-pointer flex items-center gap-2"
-              asChild
-            >
-              <span>
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                Upload Resume
-              </span>
-            </Button>
-          </label>
         </div>
-      </div>
+        <div>
+          <Label htmlFor="days">Days to Complete</Label>
+          <Input
+            id="days"
+            type="number"
+            min={1}
+            value={days}
+            onChange={(e) => setDays(parseInt(e.target.value))}
+            disabled={loading}
+          />
+        </div>
+        <Button type="submit" disabled={loading} className="w-full">
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            "Get Career Path"
+          )}
+        </Button>
+        {loading && <Progress value={progress} className="w-full" />}
+      </form>
     </Card>
   );
-}
+};
