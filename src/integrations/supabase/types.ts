@@ -14,6 +14,7 @@ export type Database = {
           created_at: string | null
           days_to_complete: number | null
           id: string
+          last_completed_at: string | null
           progress: Json | null
           recommendations: Json
           resume_id: string
@@ -23,6 +24,7 @@ export type Database = {
           created_at?: string | null
           days_to_complete?: number | null
           id?: string
+          last_completed_at?: string | null
           progress?: Json | null
           recommendations: Json
           resume_id: string
@@ -32,6 +34,7 @@ export type Database = {
           created_at?: string | null
           days_to_complete?: number | null
           id?: string
+          last_completed_at?: string | null
           progress?: Json | null
           recommendations?: Json
           resume_id?: string
