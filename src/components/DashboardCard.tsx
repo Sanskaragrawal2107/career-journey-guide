@@ -29,7 +29,6 @@ export const DashboardCard = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ensureProfileExists = async (userId: string, userEmail: string) => {
-    // Check if profile exists
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
       .select()
@@ -37,7 +36,6 @@ export const DashboardCard = ({
       .single();
 
     if (!profile) {
-      // Create profile if it doesn't exist
       const { error: insertError } = await supabase
         .from('profiles')
         .insert({
@@ -47,7 +45,6 @@ export const DashboardCard = ({
 
       if (insertError) throw new Error('Failed to create profile');
     } else if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 means no rows returned, which is expected if profile doesn't exist
       throw fetchError;
     }
   };
@@ -66,18 +63,16 @@ export const DashboardCard = ({
 
     setLoading(true);
     try {
-      // Get user data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      // Ensure profile exists before proceeding
       await ensureProfileExists(user.id, user.email || '');
 
-      // Upload file to Supabase Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
+      // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
@@ -100,31 +95,43 @@ export const DashboardCard = ({
         throw new Error("Failed to create resume record");
       }
 
-      // Generate a Signed URL valid for 2 minutes
+      // Generate a signed URL with a longer expiration time (10 minutes)
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from("resumes")
-        .createSignedUrl(filePath, 120); // 120 seconds = 2 minutes
+        .createSignedUrl(filePath, 600); // 600 seconds = 10 minutes
 
       if (signedUrlError || !signedUrlData) {
         throw new Error("Failed to generate Signed URL");
       }
 
-      const signedUrl = signedUrlData.signedUrl;
+      // Add a delay to ensure the file is fully processed
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Verify the signed URL is accessible
+      try {
+        const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error("Generated URL is not accessible");
+        }
+      } catch (error) {
+        console.error("Error verifying signed URL:", error);
+        throw new Error("Failed to verify file accessibility");
+      }
 
       // Send both the Signed URL and resume ID to Make.com
-      const response = await fetch(
+      const makeResponse = await fetch(
         "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
         {
           method: "POST",
           body: JSON.stringify({ 
-            fileUrl: signedUrl,
+            fileUrl: signedUrlData.signedUrl,
             resumeId: resumeData.id 
           }),
           headers: { "Content-Type": "application/json" },
         }
       );
 
-      if (!response.ok) {
+      if (!makeResponse.ok) {
         throw new Error("Failed to process resume via Make.com");
       }
 
