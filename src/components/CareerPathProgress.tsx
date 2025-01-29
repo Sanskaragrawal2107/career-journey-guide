@@ -5,7 +5,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CareerPathData = {
@@ -28,6 +31,9 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   const [careerPath, setCareerPath] = useState<CareerPathData | null>(null);
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [days, setDays] = useState<number>(30);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,13 +82,76 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       }
     } catch (error) {
       console.error("Error fetching career path:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please select a PDF file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Get user data
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      // Upload file to storage
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("resumes")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Generate a signed URL valid for 2 minutes
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from("resumes")
+        .createSignedUrl(filePath, 120);
+
+      if (signedUrlError || !signedUrlData) {
+        throw new Error("Failed to generate signed URL");
+      }
+
+      // Send to Make.com webhook
+      const response = await fetch(
+        "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileUrl: signedUrlData.signedUrl,
+            resumeId: resumeId,
+            daysToComplete: days
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to process career path");
+
+      toast({
+        title: "Success",
+        description: "Career path is being generated. Please wait a moment.",
+      });
+    } catch (error) {
+      console.error("Error:", error);
       toast({
         title: "Error",
-        description: "Failed to load career path data",
+        description: error.message || "Failed to process career path",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -124,9 +193,44 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   if (!careerPath || !careerPath.days || careerPath.days.length === 0) {
     return (
-      <div className="text-center p-8">
-        <p>No career path available yet. Please check back later.</p>
-      </div>
+      <Card className="p-6">
+        <form onSubmit={handleUpload} className="space-y-6">
+          <div>
+            <Label htmlFor="resume">Upload Resume (PDF)</Label>
+            <Input
+              id="resume"
+              type="file"
+              accept=".pdf"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              disabled={uploading}
+            />
+          </div>
+          <div>
+            <Label htmlFor="days">Days to Complete</Label>
+            <Input
+              id="days"
+              type="number"
+              min={1}
+              value={days}
+              onChange={(e) => setDays(parseInt(e.target.value))}
+              disabled={uploading}
+            />
+          </div>
+          <Button type="submit" disabled={uploading} className="w-full">
+            {uploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Get Career Path
+              </>
+            )}
+          </Button>
+        </form>
+      </Card>
     );
   }
 
