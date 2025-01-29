@@ -39,7 +39,6 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
   useEffect(() => {
     fetchCareerPath();
 
-    // Set up real-time subscription
     const channel = supabase
       .channel('career-path-changes')
       .on(
@@ -68,20 +67,30 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   const fetchCareerPath = async () => {
     try {
+      console.log('Fetching career path for resume:', resumeId);
       const { data: pathData, error } = await supabase
         .from("career_paths")
         .select("recommendations, progress")
         .eq("resume_id", resumeId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching career path:", error);
+        throw error;
+      }
 
+      console.log('Received career path data:', pathData);
       if (pathData) {
         setCareerPath(pathData.recommendations as CareerPathData);
         setCompletedTasks(pathData.progress as string[] || []);
       }
     } catch (error) {
       console.error("Error fetching career path:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch career path data",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
