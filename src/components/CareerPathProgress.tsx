@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, Trash2, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -95,6 +95,30 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from("career_paths")
+        .delete()
+        .eq("resume_id", resumeId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Career path deleted successfully",
+      });
+      setCareerPath(null);
+    } catch (error) {
+      console.error("Error deleting career path:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete career path",
+        variant: "destructive",
+      });
     }
   };
 
@@ -253,14 +277,33 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Overall Progress</h3>
-          <Badge variant="secondary">
-            {completedTasks.length} / {totalTasks} Tasks
-          </Badge>
+      <div className="flex justify-between items-center mb-4">
+        <div className="space-y-2 flex-1">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Overall Progress</h3>
+            <div className="flex items-center gap-2">
+              {progress === 100 && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Trophy className="h-4 w-4" />
+                  Completed
+                </Badge>
+              )}
+              <Badge variant="secondary">
+                {completedTasks.length} / {totalTasks} Tasks
+              </Badge>
+            </div>
+          </div>
+          <Progress value={progress} className="w-full" />
         </div>
-        <Progress value={progress} className="w-full" />
+        <Button
+          variant="destructive"
+          size="icon"
+          className="ml-4"
+          onClick={handleDelete}
+          title="Delete Career Path"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
 
       {careerPath.recommendations.days.map((day) => (
