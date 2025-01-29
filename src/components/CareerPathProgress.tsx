@@ -12,14 +12,16 @@ import { Label } from "@/components/ui/label";
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type CareerPathData = {
-  days: Array<{
-    day: number;
-    tasks: Array<{
-      id: string;
-      title: string;
-      description: string;
+  recommendations: {
+    days: Array<{
+      day: number;
+      tasks: Array<{
+        id: string;
+        title: string;
+        description: string;
+      }>;
     }>;
-  }>;
+  };
 };
 
 type CareerPathRecord = {
@@ -80,7 +82,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
       }
 
       console.log('Received career path data:', pathData);
-      if (pathData) {
+      if (pathData?.recommendations) {
         setCareerPath(pathData.recommendations as CareerPathData);
         setCompletedTasks(pathData.progress as string[] || []);
       }
@@ -200,7 +202,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     );
   }
 
-  if (!careerPath || !careerPath.days || careerPath.days.length === 0) {
+  if (!careerPath?.recommendations?.days || careerPath.recommendations.days.length === 0) {
     return (
       <Card className="p-6">
         <form onSubmit={handleUpload} className="space-y-6">
@@ -243,7 +245,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
     );
   }
 
-  const totalTasks = careerPath.days.reduce(
+  const totalTasks = careerPath.recommendations.days.reduce(
     (acc, day) => acc + (day.tasks?.length || 0),
     0
   );
@@ -261,7 +263,7 @@ export function CareerPathProgress({ resumeId }: { resumeId: string }) {
         <Progress value={progress} className="w-full" />
       </div>
 
-      {careerPath.days.map((day) => (
+      {careerPath.recommendations.days.map((day) => (
         <Card key={day.day} className="p-6">
           <h3 className="text-lg font-semibold mb-4">Day {day.day}</h3>
           <div className="space-y-4">
