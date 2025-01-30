@@ -57,39 +57,35 @@ export const DashboardCard = ({
     console.log('Profile check completed');
   };
 
-  const verifyFileAccess = async (filePath: string, maxAttempts = 5): Promise<string> => {
+  const verifyFileAccess = async (filePath: string): Promise<string> => {
     console.log('Starting file verification process for path:', filePath);
     
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const delay = 2000 * (attempt + 1);
-      console.log(`Attempt ${attempt + 1}: Waiting ${delay}ms before checking`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+    // Wait for 6 seconds before attempting to verify file access
+    console.log('Waiting 6 seconds before verification...');
+    await new Promise(resolve => setTimeout(resolve, 6000));
+    
+    console.log('Generating signed URL');
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from("resumes")
+      .createSignedUrl(filePath, 1800); // 30 minutes expiration
 
-      console.log(`Generating signed URL (Attempt ${attempt + 1})`);
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from("resumes")
-        .createSignedUrl(filePath, 1800); // 30 minutes expiration
-
-      if (signedUrlError || !signedUrlData) {
-        console.error(`Failed to generate signed URL (Attempt ${attempt + 1}):`, signedUrlError);
-        continue;
-      }
-
-      try {
-        console.log(`Testing URL accessibility (Attempt ${attempt + 1})`);
-        const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
-        
-        if (response.ok) {
-          console.log(`File verified accessible on attempt ${attempt + 1}`);
-          return signedUrlData.signedUrl;
-        } else {
-          console.log(`File not accessible (Attempt ${attempt + 1}), Status:`, response.status);
-        }
-      } catch (error) {
-        console.error(`Error checking file accessibility (Attempt ${attempt + 1}):`, error);
-      }
+    if (signedUrlError || !signedUrlData) {
+      console.error('Failed to generate signed URL:', signedUrlError);
+      throw new Error('Failed to generate signed URL');
     }
-    throw new Error("Failed to verify file accessibility after multiple attempts");
+
+    console.log('Testing URL accessibility');
+    try {
+      const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
+      if (!response.ok) {
+        throw new Error(`File not accessible, status: ${response.status}`);
+      }
+      console.log('File verified accessible');
+      return signedUrlData.signedUrl;
+    } catch (error) {
+      console.error('Error checking file accessibility:', error);
+      throw error;
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -127,10 +123,6 @@ export const DashboardCard = ({
         throw new Error("Failed to upload file to storage");
       }
       console.log('File uploaded successfully');
-
-      // Initial delay after upload
-      console.log('Waiting for initial file processing...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
 
       console.log('Creating resume record in database');
       const { data: resumeData, error: dbError } = await supabase
