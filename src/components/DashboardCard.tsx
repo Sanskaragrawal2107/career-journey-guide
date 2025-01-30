@@ -142,18 +142,18 @@ export const DashboardCard = ({
 
       console.log('Starting file verification process');
       const verifiedSignedUrl = await verifyFileAccess(filePath);
-      console.log('File verified and signed URL obtained');
+      console.log('File verified and signed URL obtained:', verifiedSignedUrl);
 
       console.log('Sending to Make.com webhook');
       const makeResponse = await fetch(
         "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             fileUrl: verifiedSignedUrl,
             resumeId: resumeData.id 
           }),
-          headers: { "Content-Type": "application/json" },
         }
       );
 
