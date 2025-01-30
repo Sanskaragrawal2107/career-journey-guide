@@ -69,7 +69,7 @@ export const DashboardCard = ({
       .from("resumes")
       .createSignedUrl(filePath, 1800); // 30 minutes expiration
 
-    if (signedUrlError || !signedUrlData) {
+    if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error('Failed to generate signed URL:', signedUrlError);
       throw new Error('Failed to generate signed URL');
     }
@@ -78,9 +78,10 @@ export const DashboardCard = ({
     try {
       const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
       if (!response.ok) {
+        console.error(`File not accessible, status: ${response.status}`);
         throw new Error(`File not accessible, status: ${response.status}`);
       }
-      console.log('File verified accessible');
+      console.log('File verified accessible at URL:', signedUrlData.signedUrl);
       return signedUrlData.signedUrl;
     } catch (error) {
       console.error('Error checking file accessibility:', error);
@@ -140,33 +141,48 @@ export const DashboardCard = ({
       }
       console.log('Resume record created:', resumeData.id);
 
-      console.log('Starting file verification process');
-      const verifiedSignedUrl = await verifyFileAccess(filePath);
-      console.log('File verified and signed URL obtained:', verifiedSignedUrl);
+      let verifiedSignedUrl;
+      try {
+        console.log('Starting file verification process');
+        verifiedSignedUrl = await verifyFileAccess(filePath);
+        console.log('File verified and signed URL obtained:', verifiedSignedUrl);
 
-      console.log('Sending to Make.com webhook');
-      const makeResponse = await fetch(
-        "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            fileUrl: verifiedSignedUrl,
-            resumeId: resumeData.id 
-          }),
+        if (!verifiedSignedUrl) {
+          throw new Error('Failed to obtain valid signed URL');
         }
-      );
 
-      if (!makeResponse.ok) {
-        console.error('Make.com response:', await makeResponse.text());
-        throw new Error("Failed to process resume via Make.com");
+        console.log('Sending to Make.com webhook');
+        const makeResponse = await fetch(
+          "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              fileUrl: verifiedSignedUrl,
+              resumeId: resumeData.id 
+            }),
+          }
+        );
+
+        if (!makeResponse.ok) {
+          console.error('Make.com response:', await makeResponse.text());
+          throw new Error("Failed to process resume via Make.com");
+        }
+        console.log('Make.com webhook called successfully');
+
+        toast({
+          title: "Success",
+          description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
+        });
+      } catch (error) {
+        console.error('Error in verification or webhook process:', error);
+        // Even if the webhook fails, the file is still uploaded
+        toast({
+          title: "Partial Success",
+          description: "Resume uploaded but processing may be delayed. Please check back later.",
+          variant: "destructive",
+        });
       }
-      console.log('Make.com webhook called successfully');
-
-      toast({
-        title: "Success",
-        description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
-      });
     } catch (error) {
       console.error("Error uploading resume:", error);
       toast({
