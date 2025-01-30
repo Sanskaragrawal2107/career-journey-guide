@@ -57,35 +57,50 @@ export const DashboardCard = ({
     console.log('Profile check completed');
   };
 
-  const getPublicUrl = async (filePath: string): Promise<string> => {
-    const { data } = supabase.storage
+  const getSignedUrl = async (filePath: string): Promise<string> => {
+    // Create signed URL with 1 hour expiration
+    const { data, error } = await supabase.storage
       .from("resumes")
-      .getPublicUrl(filePath);
-    
-    return data.publicUrl;
+      .createSignedUrl(filePath, 3600);
+
+    if (error || !data?.signedUrl) {
+      throw new Error('Failed to generate signed URL');
+    }
+
+    return data.signedUrl;
   };
 
-  const verifyFileAccess = async (filePath: string): Promise<string> => {
+  const verifyFileAccess = async (filePath: string, retries = 3): Promise<string> => {
     console.log('Starting file verification process for path:', filePath);
     
-    // Wait for 3 seconds to ensure file is processed
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const publicUrl = await getPublicUrl(filePath);
-    console.log('Generated public URL:', publicUrl);
+    let lastError;
+    for (let i = 0; i < retries; i++) {
+      try {
+        // Wait between retries
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
 
-    // Test URL accessibility
-    try {
-      const response = await fetch(publicUrl, { method: 'HEAD' });
-      if (!response.ok) {
-        throw new Error(`File not accessible, status: ${response.status}`);
+        // Get signed URL
+        const signedUrl = await getSignedUrl(filePath);
+        console.log('Generated signed URL, attempting verification...');
+
+        // Verify URL is accessible
+        const response = await fetch(signedUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error(`File not accessible, status: ${response.status}`);
+        }
+
+        console.log('File verified accessible');
+        return signedUrl;
+      } catch (error) {
+        console.log(`Attempt ${i + 1} failed:`, error);
+        lastError = error;
+        continue;
       }
-      console.log('File verified accessible at URL:', publicUrl);
-      return publicUrl;
-    } catch (error) {
-      console.error('Error checking file accessibility:', error);
-      throw error;
     }
+    
+    throw lastError || new Error('Failed to verify file access');
   };
 
   const handleFileUpload = async (file: File) => {
@@ -113,10 +128,14 @@ export const DashboardCard = ({
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
+      // Upload file
       console.log('Uploading file to storage:', filePath);
       const { error: uploadError } = await supabase.storage
         .from("resumes")
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false
+        });
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
@@ -124,6 +143,7 @@ export const DashboardCard = ({
       }
       console.log('File uploaded successfully');
 
+      // Create database record
       console.log('Creating resume record in database');
       const { data: resumeData, error: dbError } = await supabase
         .from("resumes")
@@ -138,12 +158,15 @@ export const DashboardCard = ({
         console.error('Database error:', dbError);
         throw new Error("Failed to create resume record");
       }
-      console.log('Resume record created:', resumeData.id);
+
+      // Wait a moment for the file to be fully processed
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       try {
-        console.log('Getting public URL for file');
-        const publicUrl = await verifyFileAccess(filePath);
-        
+        // Get and verify the signed URL
+        console.log('Getting signed URL and verifying access...');
+        const signedUrl = await verifyFileAccess(filePath);
+
         console.log('Sending to Make.com webhook');
         const makeResponse = await fetch(
           "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
@@ -151,18 +174,19 @@ export const DashboardCard = ({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-              fileUrl: publicUrl,
+              fileUrl: signedUrl,
               resumeId: resumeData.id 
             }),
           }
         );
 
         if (!makeResponse.ok) {
-          console.error('Make.com response:', await makeResponse.text());
+          const responseText = await makeResponse.text();
+          console.error('Make.com error response:', responseText);
           throw new Error("Failed to process resume via Make.com");
         }
+        
         console.log('Make.com webhook called successfully');
-
         toast({
           title: "Success",
           description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
