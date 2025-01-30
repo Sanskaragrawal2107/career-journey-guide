@@ -5,6 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+// Configuration constants
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 3000;
+
 interface DashboardCardProps {
   title: string;
   description: string;
@@ -29,7 +33,6 @@ export const DashboardCard = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ensureProfileExists = async (userId: string, userEmail: string) => {
-    console.log('Checking if profile exists for user:', userId);
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
       .select()
@@ -37,171 +40,122 @@ export const DashboardCard = ({
       .single();
 
     if (!profile) {
-      console.log('Profile not found, creating new profile');
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert({
-          id: userId,
-          email: userEmail,
-        });
-
-      if (insertError) {
-        console.error('Failed to create profile:', insertError);
-        throw new Error('Failed to create profile');
-      }
-      console.log('Profile created successfully');
-    } else if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('Error fetching profile:', fetchError);
+        .insert({ id: userId, email: userEmail });
+      if (insertError) throw new Error('Profile creation failed');
+    } else if (fetchError?.code !== 'PGRST116') {
       throw fetchError;
     }
-    console.log('Profile check completed');
   };
 
-  const verifyFileAccess = async (filePath: string, maxRetries = 5, retryDelay = 2000): Promise<string> => {
-    console.log('Starting file verification process for path:', filePath);
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  const verifyFileAccess = async (filePath: string): Promise<string> => {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        console.log(`Verification attempt ${attempt} of ${maxRetries}`);
-        
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        // Generate fresh signed URL each attempt
+        const { data: signedUrlData, error } = await supabase.storage
           .from("resumes")
           .createSignedUrl(filePath, 1800); // 30 minutes expiration
 
-        if (signedUrlError || !signedUrlData?.signedUrl) {
-          throw new Error('Failed to generate signed URL');
+        if (error || !signedUrlData?.signedUrl) {
+          throw error || new Error('Signed URL generation failed');
         }
 
-        // Test URL accessibility
+        // Verify URL accessibility
         const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
         if (response.ok) {
-          console.log('File verified accessible at URL:', signedUrlData.signedUrl);
+          console.log(`File verified on attempt ${attempt + 1}`);
           return signedUrlData.signedUrl;
         }
         
-        throw new Error(`File not accessible, status: ${response.status}`);
+        console.log(`Attempt ${attempt + 1}: URL not accessible (Status: ${response.status})`);
       } catch (error) {
-        console.log(`Attempt ${attempt} failed:`, error);
-        if (attempt === maxRetries) {
-          throw new Error('Max retry attempts reached for file verification');
-        }
-        // Wait before next retry
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        console.log(`Attempt ${attempt + 1} failed:`, error.message);
+      }
+
+      // Wait before next attempt
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       }
     }
-    
-    throw new Error('File verification failed after all attempts');
+    throw new Error('File verification failed after multiple attempts');
   };
 
   const handleFileUpload = async (file: File) => {
-    if (!file) return;
-
-    if (file.type !== "application/pdf") {
-      toast({
-        title: "Error",
-        description: "Please upload a PDF file",
-        variant: "destructive",
-      });
+    if (!file || file.type !== "application/pdf") {
+      toast({ title: "Error", description: "Please upload a valid PDF file", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Starting file upload process');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      // Get authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!user || authError) throw new Error("Authentication required");
 
-      console.log('User authenticated, ensuring profile exists');
+      // Ensure user profile exists
       await ensureProfileExists(user.id, user.email || '');
 
+      // Generate unique file path
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
-      
-      // Upload file first
-      console.log('Uploading file to storage:', filePath);
+
+      // Upload file to storage
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
+      if (uploadError) throw new Error("File upload failed");
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error("Failed to upload file to storage");
-      }
-      console.log('File uploaded successfully');
-
-      // Create resume record
-      console.log('Creating resume record in database');
+      // Create database record
       const { data: resumeData, error: dbError } = await supabase
         .from("resumes")
-        .insert({
-          file_path: filePath,
-          user_id: user.id,
-        })
+        .insert({ file_path: filePath, user_id: user.id })
         .select()
         .single();
+      if (dbError || !resumeData) throw new Error("Database record creation failed");
 
-      if (dbError || !resumeData) {
-        console.error('Database error:', dbError);
-        throw new Error("Failed to create resume record");
-      }
-      console.log('Resume record created:', resumeData.id);
+      // Verify file access with retries
+      const verifiedUrl = await verifyFileAccess(filePath);
 
-      try {
-        // Verify file with retries
-        const verifiedSignedUrl = await verifyFileAccess(filePath);
-        
-        console.log('Sending to Make.com webhook');
-        const makeResponse = await fetch(
-          "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              fileUrl: verifiedSignedUrl,
-              resumeId: resumeData.id 
-            }),
-          }
-        );
-
-        if (!makeResponse.ok) {
-          throw new Error(`Make.com webhook failed: ${await makeResponse.text()}`);
+      // Send to Make.com webhook
+      const makeResponse = await fetch(
+        "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            fileUrl: verifiedUrl,
+            resumeId: resumeData.id,
+            userId: user.id
+          }),
         }
-        
-        console.log('Make.com webhook called successfully');
-        toast({
-          title: "Success",
-          description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
-        });
-      } catch (error) {
-        console.error('Error in verification or webhook process:', error);
-        toast({
-          title: "Partial Success",
-          description: "Resume uploaded but processing may be delayed. Please check back later.",
-          variant: "destructive",
-        });
-        // You might want to add retry logic here or queue for later processing
+      );
+
+      if (!makeResponse.ok) {
+        throw new Error("Make.com integration failed");
       }
-    } catch (error) {
-      console.error("Error uploading resume:", error);
+
       toast({
-        title: "Error",
-        description: error.message || "Failed to upload resume",
+        title: "Success!",
+        description: "Resume uploaded and processing started successfully",
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload Error",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const handleClick = () => {
-    if (loading) return;
-
-    if (title === "Create New Resume" && acceptFile) {
-      fileInputRef.current?.click();
-    } else {
-      onClick();
-    }
+    if (loading || isProcessing) return;
+    acceptFile ? fileInputRef.current?.click() : onClick();
   };
 
   return (
@@ -209,13 +163,14 @@ export const DashboardCard = ({
       <Card
         className={cn(
           "p-6 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1",
+          (loading || isProcessing) && "opacity-70 cursor-not-allowed",
           className
         )}
         onClick={handleClick}
       >
         <div className="flex items-start space-x-4">
           <div className="p-2 bg-primary-50 rounded-lg">
-            {loading ? (
+            {loading || isProcessing ? (
               <Loader2 className="h-6 w-6 animate-spin" />
             ) : title === "Create New Resume" ? (
               <Upload className="h-6 w-6 text-primary" />
@@ -229,6 +184,7 @@ export const DashboardCard = ({
           </div>
         </div>
       </Card>
+      
       {acceptFile && (
         <input
           type="file"
