@@ -49,6 +49,33 @@ export const DashboardCard = ({
     }
   };
 
+  const verifyFileAccess = async (filePath: string, maxAttempts = 3): Promise<string> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Wait longer with each attempt
+      await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from("resumes")
+        .createSignedUrl(filePath, 600); // 10 minutes expiration
+
+      if (signedUrlError || !signedUrlData) {
+        console.log(`Attempt ${attempt + 1}: Failed to generate signed URL`);
+        continue;
+      }
+
+      try {
+        const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
+        if (response.ok) {
+          console.log(`File verified accessible on attempt ${attempt + 1}`);
+          return signedUrlData.signedUrl;
+        }
+      } catch (error) {
+        console.log(`Attempt ${attempt + 1}: File not yet accessible`);
+      }
+    }
+    throw new Error("Failed to verify file accessibility after multiple attempts");
+  };
+
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
@@ -72,7 +99,7 @@ export const DashboardCard = ({
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
-      // Upload file to Supabase Storage
+      console.log('Uploading file to storage...');
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(filePath, file);
@@ -81,7 +108,7 @@ export const DashboardCard = ({
         throw new Error("Failed to upload file to storage");
       }
 
-      // Create resume record in database
+      console.log('Creating resume record...');
       const { data: resumeData, error: dbError } = await supabase
         .from("resumes")
         .insert({
@@ -95,36 +122,16 @@ export const DashboardCard = ({
         throw new Error("Failed to create resume record");
       }
 
-      // Generate a signed URL with a longer expiration time (10 minutes)
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from("resumes")
-        .createSignedUrl(filePath, 600); // 600 seconds = 10 minutes
+      console.log('Verifying file accessibility...');
+      const verifiedSignedUrl = await verifyFileAccess(filePath);
 
-      if (signedUrlError || !signedUrlData) {
-        throw new Error("Failed to generate Signed URL");
-      }
-
-      // Add a delay to ensure the file is fully processed
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Verify the signed URL is accessible
-      try {
-        const response = await fetch(signedUrlData.signedUrl, { method: 'HEAD' });
-        if (!response.ok) {
-          throw new Error("Generated URL is not accessible");
-        }
-      } catch (error) {
-        console.error("Error verifying signed URL:", error);
-        throw new Error("Failed to verify file accessibility");
-      }
-
-      // Send both the Signed URL and resume ID to Make.com
+      console.log('Sending to Make.com...');
       const makeResponse = await fetch(
         "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
         {
           method: "POST",
           body: JSON.stringify({ 
-            fileUrl: signedUrlData.signedUrl,
+            fileUrl: verifiedSignedUrl,
             resumeId: resumeData.id 
           }),
           headers: { "Content-Type": "application/json" },
