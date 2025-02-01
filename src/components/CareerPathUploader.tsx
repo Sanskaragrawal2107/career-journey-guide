@@ -39,10 +39,42 @@ export const CareerPathUploader = () => {
     }
   };
 
+  const getSignedUrl = async (filePath: string): Promise<string> => {
+    console.log('Getting signed URL for:', filePath);
+    const { data, error } = await supabase.storage
+      .from("resumes")
+      .createSignedUrl(filePath, 3600);
+
+    if (error || !data?.signedUrl) {
+      console.error('Failed to generate signed URL:', error);
+      throw new Error('Failed to generate signed URL');
+    }
+
+    console.log('Generated signed URL:', data.signedUrl);
+    return data.signedUrl;
+  };
+
+  const verifyFileAccess = async (filePath: string): Promise<string> => {
+    console.log('Verifying file access for:', filePath);
+    const signedUrl = await getSignedUrl(filePath);
+    
+    try {
+      const response = await fetch(signedUrl, { method: 'HEAD' });
+      if (!response.ok) {
+        console.error(`File not accessible, status: ${response.status}`);
+        throw new Error(`File not accessible, status: ${response.status}`);
+      }
+      console.log('File verified accessible at:', signedUrl);
+      return signedUrl;
+    } catch (error) {
+      console.error('Error verifying file access:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Prevent double submission
     if (loading) return;
     
     if (!file) {
@@ -67,11 +99,9 @@ export const CareerPathUploader = () => {
     setProgress(10);
 
     try {
-      // Get user data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      // Ensure profile exists
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select()
@@ -93,7 +123,6 @@ export const CareerPathUploader = () => {
 
       setProgress(30);
 
-      // Upload file
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
@@ -106,7 +135,18 @@ export const CareerPathUploader = () => {
 
       setProgress(50);
 
-      // Create resume record
+      let signedUrl;
+      try {
+        console.log('Getting signed URL after upload');
+        signedUrl = await verifyFileAccess(filePath);
+        console.log('Verified signed URL:', signedUrl);
+      } catch (error) {
+        console.error('Error getting signed URL:', error);
+        throw new Error('Failed to generate valid file URL');
+      }
+
+      setProgress(70);
+
       const { data: resumeData, error: resumeError } = await supabase
         .from("resumes")
         .insert({
@@ -118,9 +158,6 @@ export const CareerPathUploader = () => {
 
       if (resumeError || !resumeData) throw new Error("Failed to create resume record");
 
-      setProgress(70);
-
-      // Create career path record
       const { error: careerPathError } = await supabase
         .from("career_paths")
         .insert({
@@ -132,9 +169,10 @@ export const CareerPathUploader = () => {
 
       if (careerPathError) throw careerPathError;
 
-      // Send to Make.com webhook with AbortController to prevent duplicate requests
+      setProgress(90);
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(
         "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
@@ -142,7 +180,7 @@ export const CareerPathUploader = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fileUrl: `${filePath}`,
+            fileUrl: signedUrl,
             resumeId: resumeData.id,
             daysToComplete: days,
           }),
@@ -163,16 +201,12 @@ export const CareerPathUploader = () => {
       });
 
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Request was aborted');
-      } else {
-        console.error("Error:", error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to process career path",
-          variant: "destructive",
-        });
-      }
+      console.error("Error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process career path",
+        variant: "destructive",
+      });
       setProgress(0);
     } finally {
       setLoading(false);
