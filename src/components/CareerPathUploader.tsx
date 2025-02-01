@@ -25,13 +25,14 @@ export const CareerPathUploader = () => {
     try {
       const { data: resumes, error } = await supabase
         .from("resumes")
-        .select("id, career_paths(recommendations)")
+        .select("id, career_paths!inner(recommendations)")
         .order('created_at', { ascending: false })
         .limit(1);
 
       if (error) throw error;
 
-      if (resumes && resumes.length > 0 && resumes[0].career_paths?.length > 0) {
+      if (resumes && resumes.length > 0) {
+        console.log("Found existing resume:", resumes[0]);
         setExistingResumeId(resumes[0].id);
       }
     } catch (error) {
@@ -212,6 +213,9 @@ export const CareerPathUploader = () => {
             throw new Error('Failed to update recommendations');
           }
           console.log('Successfully updated career path recommendations');
+          
+          // After successful update, set the existingResumeId to trigger re-render
+          setExistingResumeId(resumeData.id);
         } else {
           console.warn('No recommendations found in Make.com response');
         }
@@ -221,7 +225,6 @@ export const CareerPathUploader = () => {
       }
 
       setProgress(100);
-      setExistingResumeId(resumeData.id);
 
       toast({
         title: "Success",
