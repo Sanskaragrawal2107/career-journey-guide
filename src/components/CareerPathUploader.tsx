@@ -173,9 +173,7 @@ export const CareerPathUploader = () => {
 
       setProgress(90);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+      console.log('Sending to Make.com webhook with career path ID:', careerPathData.id);
       const response = await fetch(
         "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
         {
@@ -184,33 +182,42 @@ export const CareerPathUploader = () => {
           body: JSON.stringify({
             fileUrl: signedUrl,
             resumeId: resumeData.id,
+            careerPathId: careerPathData.id,
             daysToComplete: days,
           }),
-          signal: controller.signal
         }
       );
 
-      clearTimeout(timeoutId);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Make.com error response:', errorText);
+        throw new Error("Failed to process career path");
+      }
 
-      if (!response.ok) throw new Error("Failed to process career path");
+      try {
+        const makeResponse = await response.json();
+        console.log('Response from Make.com:', makeResponse);
 
-      // Handle Make.com response
-      const makeResponse = await response.json();
-      console.log('Response from Make.com:', makeResponse);
+        if (makeResponse.recommendations) {
+          console.log('Updating career path with recommendations for ID:', careerPathData.id);
+          const { error: updateError } = await supabase
+            .from("career_paths")
+            .update({ 
+              recommendations: makeResponse.recommendations 
+            })
+            .eq('id', careerPathData.id);
 
-      // Update career path with recommendations
-      if (makeResponse.recommendations) {
-        const { error: updateError } = await supabase
-          .from("career_paths")
-          .update({ 
-            recommendations: makeResponse.recommendations 
-          })
-          .eq('id', careerPathData.id);
-
-        if (updateError) {
-          console.error('Error updating recommendations:', updateError);
-          throw new Error('Failed to update recommendations');
+          if (updateError) {
+            console.error('Error updating recommendations:', updateError);
+            throw new Error('Failed to update recommendations');
+          }
+          console.log('Successfully updated career path recommendations');
+        } else {
+          console.warn('No recommendations found in Make.com response');
         }
+      } catch (error) {
+        console.error('Error processing Make.com response:', error);
+        throw new Error('Failed to process Make.com response');
       }
 
       setProgress(100);
