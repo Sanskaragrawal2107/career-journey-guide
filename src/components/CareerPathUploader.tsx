@@ -158,16 +158,18 @@ export const CareerPathUploader = () => {
 
       if (resumeError || !resumeData) throw new Error("Failed to create resume record");
 
-      const { error: careerPathError } = await supabase
+      const { data: careerPathData, error: careerPathError } = await supabase
         .from("career_paths")
         .insert({
           user_id: user.id,
           resume_id: resumeData.id,
           recommendations: {},
           days_to_complete: days,
-        });
+        })
+        .select()
+        .single();
 
-      if (careerPathError) throw careerPathError;
+      if (careerPathError || !careerPathData) throw careerPathError;
 
       setProgress(90);
 
@@ -191,6 +193,25 @@ export const CareerPathUploader = () => {
       clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error("Failed to process career path");
+
+      // Handle Make.com response
+      const makeResponse = await response.json();
+      console.log('Response from Make.com:', makeResponse);
+
+      // Update career path with recommendations
+      if (makeResponse.recommendations) {
+        const { error: updateError } = await supabase
+          .from("career_paths")
+          .update({ 
+            recommendations: makeResponse.recommendations 
+          })
+          .eq('id', careerPathData.id);
+
+        if (updateError) {
+          console.error('Error updating recommendations:', updateError);
+          throw new Error('Failed to update recommendations');
+        }
+      }
 
       setProgress(100);
       setExistingResumeId(resumeData.id);
