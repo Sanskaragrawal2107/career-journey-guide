@@ -33,7 +33,10 @@ export const CareerPathUploader = () => {
 
       if (resumes && resumes.length > 0) {
         console.log("Found existing resume:", resumes[0]);
-        setExistingResumeId(resumes[0].id);
+        const careerPath = resumes[0].career_paths;
+        if (careerPath && careerPath.recommendations) {
+          setExistingResumeId(resumes[0].id);
+        }
       }
     } catch (error) {
       console.error("Error checking existing resumes:", error);
@@ -164,7 +167,7 @@ export const CareerPathUploader = () => {
         .insert({
           user_id: user.id,
           resume_id: resumeData.id,
-          recommendations: {},
+          recommendations: { recommendations: { days: [] } },
           days_to_complete: days,
         })
         .select()
@@ -199,13 +202,17 @@ export const CareerPathUploader = () => {
         const makeResponse = await response.json();
         console.log('Response from Make.com:', makeResponse);
 
-        if (makeResponse.recommendations) {
+        if (makeResponse.days) {
+          const recommendations = {
+            recommendations: {
+              days: makeResponse.days
+            }
+          };
+          
           console.log('Updating career path with recommendations for ID:', careerPathData.id);
           const { error: updateError } = await supabase
             .from("career_paths")
-            .update({ 
-              recommendations: makeResponse.recommendations 
-            })
+            .update({ recommendations })
             .eq('id', careerPathData.id);
 
           if (updateError) {
