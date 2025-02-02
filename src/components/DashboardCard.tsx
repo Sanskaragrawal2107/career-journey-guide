@@ -138,59 +138,64 @@ export const DashboardCard = ({
       }
       console.log('File uploaded successfully');
 
-      console.log('Creating resume record in database');
-      const { data: resumeData, error: dbError } = await supabase
-        .from("resumes")
-        .insert({
-          file_path: filePath,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+      // Only create resume record if uploading through "Create New Resume"
+      if (title === "Create New Resume") {
+        console.log('Creating resume record in database');
+        const { data: resumeData, error: dbError } = await supabase
+          .from("resumes")
+          .insert({
+            file_path: filePath,
+            user_id: user.id,
+          })
+          .select()
+          .single();
 
-      if (dbError || !resumeData) {
-        console.error('Database error:', dbError);
-        throw new Error("Failed to create resume record");
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      try {
-        console.log('Getting signed URL and verifying access...');
-        const signedUrl = await verifyFileAccess(filePath);
-
-        const webhookUrl = title === "Create New Resume" 
-          ? "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3"
-          : "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu";
-
-        console.log('Sending to Make.com webhook');
-        const makeResponse = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            fileUrl: signedUrl,
-            resumeId: resumeData.id 
-          }),
-        });
-
-        if (!makeResponse.ok) {
-          const responseText = await makeResponse.text();
-          console.error('Make.com error response:', responseText);
-          throw new Error("Failed to process resume via Make.com");
+        if (dbError || !resumeData) {
+          console.error('Database error:', dbError);
+          throw new Error("Failed to create resume record");
         }
-        
-        console.log('Make.com webhook called successfully');
-        toast({
-          title: "Success",
-          description: title === "Create New Resume" 
-            ? "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete."
-            : "Career path is being generated. Please wait a moment.",
-        });
-      } catch (error) {
-        console.error('Error in verification or webhook process:', error);
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        try {
+          console.log('Getting signed URL and verifying access...');
+          const signedUrl = await verifyFileAccess(filePath);
+
+          // Only send to resume optimization webhook for "Create New Resume"
+          console.log('Sending to Make.com resume optimization webhook');
+          const makeResponse = await fetch("https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              fileUrl: signedUrl,
+              resumeId: resumeData.id 
+            }),
+          });
+
+          if (!makeResponse.ok) {
+            const responseText = await makeResponse.text();
+            console.error('Make.com error response:', responseText);
+            throw new Error("Failed to process resume via Make.com");
+          }
+          
+          console.log('Make.com webhook called successfully');
+          toast({
+            title: "Success",
+            description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
+          });
+        } catch (error) {
+          console.error('Error in verification or webhook process:', error);
+          toast({
+            title: "Processing",
+            description: "Your request is being processed. Please wait a moment.",
+          });
+        }
+      } else if (title === "Career Path Suggestions") {
+        // For career path, just pass the file path to the parent component
+        onClick();
         toast({
           title: "Processing",
-          description: "Your request is being processed. Please wait a moment.",
+          description: "Career path is being generated. Please wait a moment.",
         });
       }
     } catch (error) {
