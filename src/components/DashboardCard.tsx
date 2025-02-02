@@ -58,7 +58,6 @@ export const DashboardCard = ({
   };
 
   const getSignedUrl = async (filePath: string): Promise<string> => {
-    // Create signed URL with 1 hour expiration
     const { data, error } = await supabase.storage
       .from("resumes")
       .createSignedUrl(filePath, 3600);
@@ -76,16 +75,13 @@ export const DashboardCard = ({
     let lastError;
     for (let i = 0; i < retries; i++) {
       try {
-        // Wait between retries
         if (i > 0) {
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        // Get signed URL
         const signedUrl = await getSignedUrl(filePath);
         console.log('Generated signed URL, attempting verification...');
 
-        // Verify URL is accessible
         const response = await fetch(signedUrl, { method: 'HEAD' });
         if (!response.ok) {
           throw new Error(`File not accessible, status: ${response.status}`);
@@ -128,7 +124,6 @@ export const DashboardCard = ({
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
-      // Upload file
       console.log('Uploading file to storage:', filePath);
       const { error: uploadError } = await supabase.storage
         .from("resumes")
@@ -143,7 +138,6 @@ export const DashboardCard = ({
       }
       console.log('File uploaded successfully');
 
-      // Create database record
       console.log('Creating resume record in database');
       const { data: resumeData, error: dbError } = await supabase
         .from("resumes")
@@ -159,26 +153,25 @@ export const DashboardCard = ({
         throw new Error("Failed to create resume record");
       }
 
-      // Wait a moment for the file to be fully processed
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       try {
-        // Get and verify the signed URL
         console.log('Getting signed URL and verifying access...');
         const signedUrl = await verifyFileAccess(filePath);
 
+        const webhookUrl = title === "Create New Resume" 
+          ? "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3"
+          : "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu";
+
         console.log('Sending to Make.com webhook');
-        const makeResponse = await fetch(
-          "https://hook.eu2.make.com/mbwx1e992a7xe5j3aur164vyb63pfji3",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              fileUrl: signedUrl,
-              resumeId: resumeData.id 
-            }),
-          }
-        );
+        const makeResponse = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            fileUrl: signedUrl,
+            resumeId: resumeData.id 
+          }),
+        });
 
         if (!makeResponse.ok) {
           const responseText = await makeResponse.text();
@@ -189,14 +182,15 @@ export const DashboardCard = ({
         console.log('Make.com webhook called successfully');
         toast({
           title: "Success",
-          description: "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete.",
+          description: title === "Create New Resume" 
+            ? "Resume uploaded successfully. Check the Previous Resumes section once optimization is complete."
+            : "Career path is being generated. Please wait a moment.",
         });
       } catch (error) {
         console.error('Error in verification or webhook process:', error);
         toast({
-          title: "Partial Success",
-          description: "Resume uploaded but processing may be delayed. Please check back later.",
-          variant: "destructive",
+          title: "Processing",
+          description: "Your request is being processed. Please wait a moment.",
         });
       }
     } catch (error) {
@@ -214,7 +208,7 @@ export const DashboardCard = ({
   const handleClick = () => {
     if (loading) return;
 
-    if (title === "Create New Resume" && acceptFile) {
+    if ((title === "Create New Resume" || title === "Career Path Suggestions") && acceptFile) {
       fileInputRef.current?.click();
     } else {
       onClick();
@@ -234,7 +228,7 @@ export const DashboardCard = ({
           <div className="p-2 bg-primary-50 rounded-lg">
             {loading ? (
               <Loader2 className="h-6 w-6 animate-spin" />
-            ) : title === "Create New Resume" ? (
+            ) : title === "Create New Resume" || (title === "Career Path Suggestions" && acceptFile) ? (
               <Upload className="h-6 w-6 text-primary" />
             ) : (
               icon

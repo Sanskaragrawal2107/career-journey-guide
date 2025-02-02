@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { CareerPathProgress } from "./CareerPathProgress";
 
 export const CareerPathUploader = () => {
@@ -48,57 +48,13 @@ export const CareerPathUploader = () => {
     }
   };
 
-  const getSignedUrl = async (filePath: string): Promise<string> => {
-    console.log('Getting signed URL for:', filePath);
-    const { data, error } = await supabase.storage
-      .from("resumes")
-      .createSignedUrl(filePath, 3600);
-
-    if (error || !data?.signedUrl) {
-      console.error('Failed to generate signed URL:', error);
-      throw new Error('Failed to generate signed URL');
-    }
-
-    console.log('Generated signed URL:', data.signedUrl);
-    return data.signedUrl;
-  };
-
-  const verifyFileAccess = async (filePath: string): Promise<string> => {
-    console.log('Verifying file access for:', filePath);
-    const signedUrl = await getSignedUrl(filePath);
-    
-    try {
-      const response = await fetch(signedUrl, { method: 'HEAD' });
-      if (!response.ok) {
-        console.error(`File not accessible, status: ${response.status}`);
-        throw new Error(`File not accessible, status: ${response.status}`);
-      }
-      console.log('File verified accessible at:', signedUrl);
-      return signedUrl;
-    } catch (error) {
-      console.error('Error verifying file access:', error);
-      throw error;
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loading) return;
     
     if (!file) {
       toast({
         title: "No file selected",
         description: "Please select a PDF file to upload",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (file.type !== "application/pdf") {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF file",
         variant: "destructive",
       });
       return;
@@ -144,14 +100,12 @@ export const CareerPathUploader = () => {
 
       setProgress(50);
 
-      let signedUrl;
-      try {
-        console.log('Getting signed URL after upload');
-        signedUrl = await verifyFileAccess(filePath);
-        console.log('Verified signed URL:', signedUrl);
-      } catch (error) {
-        console.error('Error getting signed URL:', error);
-        throw new Error('Failed to generate valid file URL');
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from("resumes")
+        .createSignedUrl(filePath, 120);
+
+      if (signedUrlError || !signedUrlData) {
+        throw new Error("Failed to generate signed URL");
       }
 
       setProgress(70);
@@ -182,49 +136,47 @@ export const CareerPathUploader = () => {
 
       setProgress(90);
 
-      console.log('Sending to Make.com webhook with career path ID:', careerPathData.id);
-      const response = await fetch(
-        "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileUrl: signedUrl,
-            resumeId: resumeData.id,
-            careerPathId: careerPathData.id,
-            daysToComplete: days,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Make.com error response:', errorText);
-        throw new Error("Failed to process career path");
-      }
-
       try {
-        const makeResponse = await response.json();
-        console.log('Response from Make.com:', makeResponse);
-
-        if (makeResponse.days) {
-          const recommendations = {
-            recommendations: {
-              days: makeResponse.days
-            }
-          };
-          
-          console.log('Updating career path with recommendations for ID:', careerPathData.id);
-          const { error: updateError } = await supabase
-            .from("career_paths")
-            .update({ recommendations })
-            .eq('id', careerPathData.id);
-
-          if (updateError) {
-            console.error('Error updating recommendations:', updateError);
-            throw new Error('Failed to update recommendations');
+        const response = await fetch(
+          "https://hook.eu2.make.com/hq2vblqddu8mdnr8cez7n51x9gh4x7fu",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileUrl: signedUrlData.signedUrl,
+              resumeId: resumeData.id,
+              careerPathId: careerPathData.id,
+              daysToComplete: days,
+            }),
           }
-          console.log('Successfully updated career path recommendations');
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to process career path");
+        }
+
+        try {
+          const makeResponse = await response.json();
+          console.log('Response from Make.com:', makeResponse);
+
+          if (makeResponse.days) {
+            const recommendations = {
+              recommendations: {
+                days: makeResponse.days
+              }
+            };
+            
+            console.log('Updating career path with recommendations for ID:', careerPathData.id);
+            const { error: updateError } = await supabase
+              .from("career_paths")
+              .update({ recommendations })
+              .eq('id', careerPathData.id);
+
+            if (updateError) {
+              console.error('Error updating recommendations:', updateError);
+              throw new Error('Failed to update recommendations');
+            }
+            console.log('Successfully updated career path recommendations');
           
           setExistingResumeId(resumeData.id);
         } else {
@@ -236,20 +188,24 @@ export const CareerPathUploader = () => {
       }
 
       setProgress(100);
-
       toast({
-        title: "Success",
-        description: "Career path is being generated. Please wait a moment.",
+        title: "Processing",
+        description: "Your career path is being generated. Please wait a moment.",
       });
 
     } catch (error) {
+      console.error('Error in verification or webhook process:', error);
+      toast({
+        title: "Processing",
+        description: "Your request is being processed. Please wait a moment.",
+      });
+    }
+    } catch (error) {
       console.error("Error:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to process career path",
-        variant: "destructive",
+        title: "Processing",
+        description: "Your request is being processed. Please wait a moment.",
       });
-      setProgress(0);
     } finally {
       setLoading(false);
     }
@@ -261,7 +217,7 @@ export const CareerPathUploader = () => {
 
   return (
     <Card className="p-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleUpload} className="space-y-6">
         <div>
           <Label htmlFor="resume">Upload Resume (PDF)</Label>
           <Input
@@ -290,7 +246,10 @@ export const CareerPathUploader = () => {
               Processing...
             </>
           ) : (
-            "Get Career Path"
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Get Career Path
+            </>
           )}
         </Button>
         {loading && <Progress value={progress} className="w-full" />}
