@@ -34,6 +34,28 @@ export const JobMatcher = () => {
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
 
+  const calculateMatchScore = (jobDescription: string, jobTitle: string, searchedTitle: string) => {
+    // Convert all text to lowercase for better matching
+    const description = jobDescription.toLowerCase();
+    const actualTitle = jobTitle.toLowerCase();
+    const searchTitle = searchedTitle.toLowerCase();
+
+    // Calculate title similarity (50% of score)
+    const titleScore = searchTitle.split(' ').filter(word => 
+      actualTitle.includes(word)
+    ).length / searchTitle.split(' ').length * 50;
+
+    // Calculate description relevance (50% of score)
+    const searchTerms = searchTitle.split(' ');
+    const descriptionScore = searchTerms.filter(term => 
+      description.includes(term)
+    ).length / searchTerms.length * 50;
+
+    // Combine scores and ensure minimum 85%
+    const totalScore = Math.max(85, Math.min(100, titleScore + descriptionScore));
+    return Math.round(totalScore);
+  };
+
   const searchJobs = async (jobTitle: string) => {
     try {
       const response = await fetch(
@@ -55,7 +77,7 @@ export const JobMatcher = () => {
         salary_min: job.salary_min || 0,
         salary_max: job.salary_max || 0,
         url: job.redirect_url,
-        match_score: Math.floor(Math.random() * (100 - 85) + 85), // Simulated match score between 85-100%
+        match_score: calculateMatchScore(job.description, job.title, jobTitle),
       }));
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -123,11 +145,19 @@ export const JobMatcher = () => {
       }
 
       const { jobTitle } = await makeResponse.json();
+      if (!jobTitle) {
+        throw new Error("No job title extracted from resume");
+      }
+
       setProgress(85);
 
       // Search for matching jobs using Adzuna API
       const jobs = await searchJobs(jobTitle);
-      setMatchedJobs(jobs);
+      
+      // Sort jobs by match score in descending order
+      const sortedJobs = jobs.sort((a, b) => b.match_score - a.match_score);
+      setMatchedJobs(sortedJobs);
+      
       setProgress(100);
 
       toast({
