@@ -141,14 +141,21 @@ export const JobMatcher = () => {
       );
 
       if (!makeResponse.ok) {
-        throw new Error("Failed to extract job title");
+        const errorData = await makeResponse.text();
+        console.error("Make.com webhook error:", errorData);
+        throw new Error(
+          "Failed to process resume. Please ensure your Make.com scenario is properly configured and running."
+        );
       }
 
-      const { jobTitle, skills } = await makeResponse.json();
-      if (!jobTitle) {
-        throw new Error("No job title extracted from resume");
+      const responseData = await makeResponse.json();
+      console.log("Make.com response:", responseData);
+
+      if (!responseData.jobTitle) {
+        throw new Error("No job title extracted from resume. Please check the Make.com scenario configuration.");
       }
 
+      const { jobTitle, skills } = responseData;
       console.log("Extracted job title:", jobTitle);
       console.log("Extracted skills:", skills);
 
@@ -176,6 +183,7 @@ export const JobMatcher = () => {
       });
     } finally {
       setLoading(false);
+      setProgress(0);
     }
   };
 
