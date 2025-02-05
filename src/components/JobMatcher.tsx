@@ -128,9 +128,9 @@ export const JobMatcher = () => {
 
       setProgress(70);
 
-      // Call Make.com webhook to extract job title
+      // Call Make.com webhook with the signed URL
       const makeResponse = await fetch(
-        "YOUR_MAKE_WEBHOOK_URL",
+        "https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -144,10 +144,13 @@ export const JobMatcher = () => {
         throw new Error("Failed to extract job title");
       }
 
-      const { jobTitle } = await makeResponse.json();
+      const { jobTitle, skills } = await makeResponse.json();
       if (!jobTitle) {
         throw new Error("No job title extracted from resume");
       }
+
+      console.log("Extracted job title:", jobTitle);
+      console.log("Extracted skills:", skills);
 
       setProgress(85);
 
