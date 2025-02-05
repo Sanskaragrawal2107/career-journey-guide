@@ -7,13 +7,61 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Upload, Download } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+interface JobMatch {
+  title: string;
+  company: string;
+  location: string;
+  description: string;
+  salary_min: number;
+  salary_max: number;
+  url: string;
+  match_score: number;
+}
 
 export const JobMatcher = () => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [matchedJobs, setMatchedJobs] = useState<any[] | null>(null);
+  const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
+
+  const searchJobs = async (jobTitle: string) => {
+    try {
+      const response = await fetch(
+        `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${process.env.ADZUNA_APP_ID}&app_key=${process.env.ADZUNA_API_KEY}&results_per_page=10&what=${encodeURIComponent(
+          jobTitle
+        )}&content-type=application/json`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch jobs");
+      }
+
+      const data = await response.json();
+      return data.results.map((job: any) => ({
+        title: job.title,
+        company: job.company.display_name,
+        location: `${job.location.area.join(", ")}`,
+        description: job.description,
+        salary_min: job.salary_min || 0,
+        salary_max: job.salary_max || 0,
+        url: job.redirect_url,
+        match_score: Math.floor(Math.random() * (100 - 85) + 85), // Simulated match score between 85-100%
+      }));
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      throw error;
+    }
+  };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +106,9 @@ export const JobMatcher = () => {
 
       setProgress(70);
 
-      // Replace with your Make.com webhook URL for job matching
-      const response = await fetch(
-        "YOUR_MAKE_WEBHOOK_URL_FOR_JOB_MATCHING",
+      // Call Make.com webhook to extract job title
+      const makeResponse = await fetch(
+        "YOUR_MAKE_WEBHOOK_URL",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -70,11 +118,15 @@ export const JobMatcher = () => {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to process job matching");
+      if (!makeResponse.ok) {
+        throw new Error("Failed to extract job title");
       }
 
-      const jobs = await response.json();
+      const { jobTitle } = await makeResponse.json();
+      setProgress(85);
+
+      // Search for matching jobs using Adzuna API
+      const jobs = await searchJobs(jobTitle);
       setMatchedJobs(jobs);
       setProgress(100);
 
@@ -86,7 +138,7 @@ export const JobMatcher = () => {
       console.error("Error:", error);
       toast({
         title: "Error",
-        description: "Failed to process job matching",
+        description: error.message || "Failed to process job matching",
         variant: "destructive",
       });
     } finally {
@@ -98,9 +150,9 @@ export const JobMatcher = () => {
     if (!matchedJobs) return;
 
     const csvContent = "data:text/csv;charset=utf-8," + 
-      "Job Title,Company,Location,Match Score\n" +
+      "Job Title,Company,Location,Match Score,Salary Range,URL\n" +
       matchedJobs.map(job => 
-        `${job.title},${job.company},${job.location},${job.match_score}`
+        `"${job.title}","${job.company}","${job.location}",${job.match_score},"${job.salary_min}-${job.salary_max}","${job.url}"`
       ).join("\n");
 
     const encodedUri = encodeURI(csvContent);
@@ -139,11 +191,50 @@ export const JobMatcher = () => {
           )}
         </Button>
         {loading && <Progress value={progress} className="w-full" />}
+        
         {matchedJobs && (
-          <Button onClick={downloadResults} variant="outline" className="w-full">
-            <Download className="mr-2 h-4 w-4" />
-            Download Matches CSV
-          </Button>
+          <div className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Job Title</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Match Score</TableHead>
+                  <TableHead>Salary Range</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {matchedJobs.map((job, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{job.title}</TableCell>
+                    <TableCell>{job.company}</TableCell>
+                    <TableCell>{job.location}</TableCell>
+                    <TableCell className="font-semibold text-green-600">
+                      {job.match_score}%
+                    </TableCell>
+                    <TableCell>
+                      £{job.salary_min.toLocaleString()} - £{job.salary_max.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(job.url, '_blank')}
+                      >
+                        View Job
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button onClick={downloadResults} variant="outline" className="w-full">
+              <Download className="mr-2 h-4 w-4" />
+              Download Matches CSV
+            </Button>
+          </div>
         )}
       </form>
     </Card>
