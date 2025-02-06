@@ -1,5 +1,4 @@
 project_id = "wxmxtdsoogozosaautvo"
-[api]
-enabled = true
-[api.cors]
-enabled = true
+[functions]
+[functions.process-job-match]
+verify_jwt = false
