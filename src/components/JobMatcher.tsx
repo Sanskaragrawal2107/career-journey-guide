@@ -112,28 +112,24 @@ export const JobMatcher = () => {
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          const response = await fetch(
-            "https://wxmxtdsoogozosaautvo.supabase.co/functions/v1/process-job-match",
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
+          const { data: jobMatches, error } = await supabase.functions.invoke('process-job-match', {
+            method: 'GET'
+          });
 
-          if (response.ok) {
-            const jobs = await response.json();
-            if (jobs && Array.isArray(jobs)) {
-              clearInterval(pollInterval);
-              setMatchedJobs(jobs);
-              setIsProcessing(false);
-              setProgress(100);
-              toast({
-                title: "Success",
-                description: "Job matches found! You can now view the results.",
-              });
-            }
+          if (error) {
+            console.error("Error polling for results:", error);
+            throw error;
+          }
+
+          if (jobMatches && Array.isArray(jobMatches)) {
+            clearInterval(pollInterval);
+            setMatchedJobs(jobMatches);
+            setIsProcessing(false);
+            setProgress(100);
+            toast({
+              title: "Success",
+              description: "Job matches found! You can now view the results.",
+            });
           }
         } catch (error) {
           console.error("Error polling for results:", error);

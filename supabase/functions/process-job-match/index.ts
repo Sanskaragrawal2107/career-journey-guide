@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,18 +14,35 @@ serve(async (req) => {
 
   try {
     console.log('Received request to process job match');
-    const { jobTitle, skills } = await req.json();
     
-    if (!jobTitle || !skills) {
-      console.error('Missing required fields:', { jobTitle, skills });
-      throw new Error('Missing required fields: jobTitle and skills are required');
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Get the latest resume analysis result
+    const { data: latestResume, error: resumeError } = await supabaseClient
+      .from('resumes')
+      .select('analysis_result')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (resumeError || !latestResume?.length) {
+      console.error('Error fetching resume:', resumeError);
+      throw new Error('No resume found or error fetching resume');
     }
 
-    console.log('Processing job match for:', { jobTitle, skills });
+    const analysis = latestResume[0].analysis_result;
+    if (!analysis) {
+      throw new Error('Resume analysis not found');
+    }
+
+    console.log('Processing job match for analysis:', analysis);
 
     // Call Adzuna API to search for matching jobs
     const response = await fetch(
-      `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(jobTitle)}&content-type=application/json`
+      `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(analysis.job_title || '')}&content-type=application/json`
     );
 
     if (!response.ok) {
@@ -44,7 +62,7 @@ serve(async (req) => {
       salary_min: job.salary_min || 0,
       salary_max: job.salary_max || 0,
       url: job.redirect_url,
-      match_score: calculateMatchScore(job.description, job.title, jobTitle, skills),
+      match_score: calculateMatchScore(job.description, job.title, analysis.job_title || '', analysis.skills || []),
     }));
 
     console.log('Processed matches:', matches.length);
