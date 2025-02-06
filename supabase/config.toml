@@ -1,4 +1,4 @@
 project_id = "wxmxtdsoogozosaautvo"
-[functions]
+
 [functions.process-job-match]
 verify_jwt = false
