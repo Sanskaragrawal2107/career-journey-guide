@@ -15,37 +15,17 @@ serve(async (req) => {
     console.log('Received request to process job match');
     
     // Parse the incoming webhook data
-    const { fileUrl, resumeId } = await req.json();
-    console.log('Received webhook data:', { fileUrl, resumeId });
+    const { jobTitle, skills } = await req.json();
+    console.log('Received job data:', { jobTitle, skills });
 
-    if (!fileUrl || !resumeId) {
-      console.error('Missing required fields:', { fileUrl, resumeId });
-      throw new Error('Missing required fields: fileUrl and resumeId are required');
+    if (!jobTitle) {
+      console.error('Missing required field: jobTitle');
+      throw new Error('Missing required field: jobTitle is required');
     }
-
-    // Get resume analysis from the resumes table
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { data: resume, error: resumeError } = await supabaseClient
-      .from('resumes')
-      .select('analysis_result')
-      .eq('id', resumeId)
-      .single();
-
-    if (resumeError || !resume?.analysis_result) {
-      console.error('Error fetching resume:', resumeError);
-      throw new Error('Resume analysis not found');
-    }
-
-    const analysis = resume.analysis_result;
-    console.log('Processing job match for analysis:', analysis);
 
     // Call Adzuna API to search for matching jobs
     const response = await fetch(
-      `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(analysis.job_title || '')}&content-type=application/json`
+      `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(jobTitle)}&content-type=application/json`
     );
 
     if (!response.ok) {
@@ -62,10 +42,8 @@ serve(async (req) => {
       company: job.company.display_name,
       location: `${job.location.area.join(", ")}`,
       description: job.description,
-      salary_min: job.salary_min || 0,
-      salary_max: job.salary_max || 0,
       url: job.redirect_url,
-      match_score: calculateMatchScore(job.description, job.title, analysis.job_title || '', analysis.skills || []),
+      match_score: calculateMatchScore(job.description, job.title, jobTitle, skills || []),
     }));
 
     console.log('Processed matches:', matches.length);
@@ -96,9 +74,10 @@ function calculateMatchScore(jobDescription: string, jobTitle: string, searchedT
   ).length / searchTitle.split(' ').length * 30;
 
   // Calculate skills match (40% of score)
-  const skillsScore = skills.filter(skill => 
-    description.includes(skill.toLowerCase())
-  ).length / skills.length * 40;
+  const skillsScore = skills.length > 0 ? 
+    skills.filter(skill => 
+      description.includes(skill.toLowerCase())
+    ).length / skills.length * 40 : 40;
 
   // Calculate description relevance (30% of score)
   const searchTerms = searchTitle.split(' ');
