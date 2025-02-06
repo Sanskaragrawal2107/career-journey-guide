@@ -79,7 +79,21 @@ export const JobMatcher = () => {
 
       setProgress(70);
 
-      // Call Make.com webhook with the signed URL
+      // Create resume record in database
+      const { data: resumeData, error: dbError } = await supabase
+        .from("resumes")
+        .insert({
+          file_path: filePath,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (dbError || !resumeData) {
+        throw new Error("Failed to create resume record");
+      }
+
+      // Call Make.com webhook with the signed URL and resume ID
       const makeResponse = await fetch(
         "https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1",
         {
@@ -87,6 +101,7 @@ export const JobMatcher = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fileUrl: signedUrlData.signedUrl,
+            resumeId: resumeData.id
           }),
         }
       );
@@ -94,9 +109,7 @@ export const JobMatcher = () => {
       if (!makeResponse.ok) {
         const errorData = await makeResponse.text();
         console.error("Make.com webhook error:", errorData);
-        throw new Error(
-          "Failed to process resume. Please ensure your Make.com scenario is properly configured and running."
-        );
+        throw new Error("Failed to process resume");
       }
 
       setProgress(85);
@@ -113,7 +126,8 @@ export const JobMatcher = () => {
         attempts++;
         try {
           const { data: jobMatches, error } = await supabase.functions.invoke('process-job-match', {
-            method: 'GET'
+            method: 'POST',
+            body: { resumeId: resumeData.id }
           });
 
           if (error) {

@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,29 +14,33 @@ serve(async (req) => {
   try {
     console.log('Received request to process job match');
     
-    // Create Supabase client
+    // Parse the incoming webhook data
+    const { fileUrl, resumeId } = await req.json();
+    console.log('Received webhook data:', { fileUrl, resumeId });
+
+    if (!fileUrl || !resumeId) {
+      console.error('Missing required fields:', { fileUrl, resumeId });
+      throw new Error('Missing required fields: fileUrl and resumeId are required');
+    }
+
+    // Get resume analysis from the resumes table
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
-    // Get the latest resume analysis result
-    const { data: latestResume, error: resumeError } = await supabaseClient
+    const { data: resume, error: resumeError } = await supabaseClient
       .from('resumes')
       .select('analysis_result')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .eq('id', resumeId)
+      .single();
 
-    if (resumeError || !latestResume?.length) {
+    if (resumeError || !resume?.analysis_result) {
       console.error('Error fetching resume:', resumeError);
-      throw new Error('No resume found or error fetching resume');
-    }
-
-    const analysis = latestResume[0].analysis_result;
-    if (!analysis) {
       throw new Error('Resume analysis not found');
     }
 
+    const analysis = resume.analysis_result;
     console.log('Processing job match for analysis:', analysis);
 
     // Call Adzuna API to search for matching jobs
