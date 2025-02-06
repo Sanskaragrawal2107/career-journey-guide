@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Upload, Download } from "lucide-react";
 import {
@@ -32,58 +32,8 @@ export const JobMatcher = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-
-  const calculateMatchScore = (jobDescription: string, jobTitle: string, searchedTitle: string) => {
-    // Convert all text to lowercase for better matching
-    const description = jobDescription.toLowerCase();
-    const actualTitle = jobTitle.toLowerCase();
-    const searchTitle = searchedTitle.toLowerCase();
-
-    // Calculate title similarity (50% of score)
-    const titleScore = searchTitle.split(' ').filter(word => 
-      actualTitle.includes(word)
-    ).length / searchTitle.split(' ').length * 50;
-
-    // Calculate description relevance (50% of score)
-    const searchTerms = searchTitle.split(' ');
-    const descriptionScore = searchTerms.filter(term => 
-      description.includes(term)
-    ).length / searchTerms.length * 50;
-
-    // Combine scores and ensure minimum 85%
-    const totalScore = Math.max(85, Math.min(100, titleScore + descriptionScore));
-    return Math.round(totalScore);
-  };
-
-  const searchJobs = async (jobTitle: string) => {
-    try {
-      const response = await fetch(
-        `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${process.env.ADZUNA_APP_ID}&app_key=${process.env.ADZUNA_API_KEY}&results_per_page=10&what=${encodeURIComponent(
-          jobTitle
-        )}&content-type=application/json`
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch jobs");
-      }
-
-      const data = await response.json();
-      return data.results.map((job: any) => ({
-        title: job.title,
-        company: job.company.display_name,
-        location: `${job.location.area.join(", ")}`,
-        description: job.description,
-        salary_min: job.salary_min || 0,
-        salary_max: job.salary_max || 0,
-        url: job.redirect_url,
-        match_score: calculateMatchScore(job.description, job.title, jobTitle),
-      }));
-    } catch (error) {
-      console.error("Error fetching jobs:", error);
-      throw error;
-    }
-  };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +49,7 @@ export const JobMatcher = () => {
 
     setLoading(true);
     setProgress(10);
+    setIsProcessing(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -148,34 +99,60 @@ export const JobMatcher = () => {
         );
       }
 
-      const responseData = await makeResponse.json();
-      console.log("Make.com response:", responseData);
-
-      if (!responseData.jobTitle) {
-        throw new Error("No job title extracted from resume. Please check the Make.com scenario configuration.");
-      }
-
-      const { jobTitle, skills } = responseData;
-      console.log("Extracted job title:", jobTitle);
-      console.log("Extracted skills:", skills);
-
       setProgress(85);
-
-      // Search for matching jobs using Adzuna API
-      const jobs = await searchJobs(jobTitle);
       
-      // Sort jobs by match score in descending order
-      const sortedJobs = jobs.sort((a, b) => b.match_score - a.match_score);
-      setMatchedJobs(sortedJobs);
-      
-      setProgress(100);
-
       toast({
-        title: "Success",
-        description: "Job matches found! You can now download the results.",
+        title: "Processing",
+        description: "Your resume is being analyzed. Results will appear shortly.",
       });
+
+      // Poll for results from the process-job-match function
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const response = await fetch(
+            "https://wxmxtdsoogozosaautvo.supabase.co/functions/v1/process-job-match",
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (response.ok) {
+            const jobs = await response.json();
+            if (jobs && Array.isArray(jobs)) {
+              clearInterval(pollInterval);
+              setMatchedJobs(jobs);
+              setIsProcessing(false);
+              setProgress(100);
+              toast({
+                title: "Success",
+                description: "Job matches found! You can now view the results.",
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error polling for results:", error);
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          setIsProcessing(false);
+          toast({
+            title: "Processing taking longer than expected",
+            description: "Please try refreshing the page in a few moments.",
+            variant: "destructive",
+          });
+        }
+      }, 1000);
+
     } catch (error) {
       console.error("Error:", error);
+      setIsProcessing(false);
       toast({
         title: "Error",
         description: error.message || "Failed to process job matching",
@@ -183,7 +160,6 @@ export const JobMatcher = () => {
       });
     } finally {
       setLoading(false);
-      setProgress(0);
     }
   };
 
@@ -215,14 +191,14 @@ export const JobMatcher = () => {
             type="file"
             accept=".pdf"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            disabled={loading}
+            disabled={loading || isProcessing}
           />
         </div>
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? (
+        <Button type="submit" disabled={loading || isProcessing} className="w-full">
+          {loading || isProcessing ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
+              {isProcessing ? "Processing Resume..." : "Uploading..."}
             </>
           ) : (
             <>
@@ -231,7 +207,7 @@ export const JobMatcher = () => {
             </>
           )}
         </Button>
-        {loading && <Progress value={progress} className="w-full" />}
+        {(loading || isProcessing) && <Progress value={progress} className="w-full" />}
         
         {matchedJobs && (
           <div className="space-y-4">
