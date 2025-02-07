@@ -25,11 +25,34 @@ interface JobMatch {
   match_score: number;
 }
 
+interface MakeResponse {
+  jobTitle: string;
+  skills: string[];
+}
+
 export const JobMatcher = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
+
+  const processJobMatches = async (makeData: MakeResponse) => {
+    try {
+      const { data: jobs, error } = await supabase.functions.invoke('process-job-match', {
+        body: {
+          jobTitle: makeData.jobTitle,
+          skills: makeData.skills
+        }
+      });
+
+      if (error) throw error;
+      console.log("Processed job matches:", jobs);
+      return jobs;
+    } catch (error) {
+      console.error("Error processing job matches:", error);
+      throw new Error("Failed to process job matches");
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -84,10 +107,13 @@ export const JobMatcher = () => {
         throw new Error("Failed to process resume");
       }
 
-      // Get the job matches from the response
-      const jobMatches = await makeResponse.json();
-      console.log("Received job matches:", jobMatches);
-      setMatchedJobs(jobMatches);
+      // Get the job data from Make.com
+      const makeData: MakeResponse = await makeResponse.json();
+      console.log("Received Make.com data:", makeData);
+
+      // Process job matches using our Edge Function
+      const processedJobs = await processJobMatches(makeData);
+      setMatchedJobs(processedJobs);
 
       setProgress(80);
       toast({
@@ -95,7 +121,7 @@ export const JobMatcher = () => {
         description: "Resume processed successfully. Check out your job matches below!",
       });
 
-      // Delete the file after sending to Make.com
+      // Delete the file after processing
       await supabase.storage
         .from('job_pdfs')
         .remove([filePath]);
