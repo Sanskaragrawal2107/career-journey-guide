@@ -1,8 +1,7 @@
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,24 +24,29 @@ interface JobMatch {
   match_score: number;
 }
 
+interface JobMatchRequest {
+  jobTitle: string;
+  skills: string[];
+}
+
 export const JobMatcher = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
 
-  const handleJobMatch = async () => {
+  // This function will be triggered by the webhook from Make.com
+  const processJobMatch = async (jobData: JobMatchRequest) => {
     setLoading(true);
     setProgress(10);
+    setMatchedJobs(null);
 
     try {
-      // Call the process-job-match function
+      console.log('Processing job match with data:', jobData);
+      
       const { data: jobMatches, error } = await supabase.functions.invoke('process-job-match', {
         method: 'POST',
-        body: {
-          jobTitle: "Software Engineer",
-          skills: ["JavaScript", "React", "Node.js"]
-        }
+        body: jobData
       });
 
       if (error) {
@@ -54,7 +58,7 @@ export const JobMatcher = () => {
       setMatchedJobs(jobMatches);
       toast({
         title: "Success",
-        description: "Job matches found! You can now view the results.",
+        description: `Found matching jobs for ${jobData.jobTitle}`,
       });
     } catch (error) {
       console.error("Error:", error);
@@ -89,17 +93,14 @@ export const JobMatcher = () => {
   return (
     <Card className="p-6">
       <div className="space-y-6">
-        <Button onClick={handleJobMatch} disabled={loading} className="w-full">
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            "Find Matching Jobs"
-          )}
-        </Button>
-        {loading && <Progress value={progress} className="w-full" />}
+        {loading && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+            <Progress value={progress} className="w-full" />
+          </div>
+        )}
         
         {matchedJobs && (
           <div className="space-y-4">
@@ -109,6 +110,7 @@ export const JobMatcher = () => {
                   <TableHead>Job Title</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Match Score</TableHead>
                   <TableHead>Action</TableHead>
                 </TableRow>
@@ -119,6 +121,9 @@ export const JobMatcher = () => {
                     <TableCell>{job.title}</TableCell>
                     <TableCell>{job.company}</TableCell>
                     <TableCell>{job.location}</TableCell>
+                    <TableCell className="max-w-md truncate">
+                      {job.description}
+                    </TableCell>
                     <TableCell className="font-semibold text-green-600">
                       {job.match_score}%
                     </TableCell>
