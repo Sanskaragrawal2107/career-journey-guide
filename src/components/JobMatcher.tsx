@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -73,7 +73,7 @@ export const JobMatcher = () => {
 
       setProgress(60);
 
-      // Send to Make.com webhook
+      // Send to Make.com webhook and wait for response
       const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,10 +84,15 @@ export const JobMatcher = () => {
         throw new Error("Failed to process resume");
       }
 
+      // Get the job matches from the response
+      const jobMatches = await makeResponse.json();
+      console.log("Received job matches:", jobMatches);
+      setMatchedJobs(jobMatches);
+
       setProgress(80);
       toast({
         title: "Success",
-        description: "Resume uploaded and being processed. Results will appear shortly.",
+        description: "Resume processed successfully. Check out your job matches below!",
       });
 
       // Delete the file after sending to Make.com
