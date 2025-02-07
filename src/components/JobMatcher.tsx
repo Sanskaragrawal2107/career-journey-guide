@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -24,16 +25,89 @@ interface JobMatch {
   match_score: number;
 }
 
-interface JobMatchRequest {
-  jobTitle: string;
-  skills: string[];
-}
-
 export const JobMatcher = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Error",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setProgress(20);
+
+      // Get the authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      // Upload file to Supabase
+      const fileName = `${crypto.randomUUID()}.pdf`;
+      const filePath = `${user.id}/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('job_pdfs')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      setProgress(40);
+
+      // Get signed URL
+      const { data: { signedUrl }, error: signedUrlError } = await supabase.storage
+        .from('job_pdfs')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      if (signedUrlError || !signedUrl) throw new Error("Failed to generate signed URL");
+
+      setProgress(60);
+
+      // Send to Make.com webhook
+      const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileUrl: signedUrl }),
+      });
+
+      if (!makeResponse.ok) {
+        throw new Error("Failed to process resume");
+      }
+
+      setProgress(80);
+      toast({
+        title: "Success",
+        description: "Resume uploaded and being processed. Results will appear shortly.",
+      });
+
+      // Delete the file after sending to Make.com
+      await supabase.storage
+        .from('job_pdfs')
+        .remove([filePath]);
+
+      setProgress(100);
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process resume",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setProgress(0);
+    }
+  };
 
   const downloadResults = () => {
     if (!matchedJobs) return;
@@ -56,12 +130,23 @@ export const JobMatcher = () => {
   return (
     <Card className="p-6">
       <div className="space-y-6">
-        {loading && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+        <div className="flex items-center gap-4">
+          <Input
+            type="file"
+            accept=".pdf"
+            onChange={handleFileUpload}
+            disabled={loading}
+            className="max-w-sm"
+          />
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+        </div>
+
+        {loading && progress > 0 && (
+          <div className="space-y-2">
             <Progress value={progress} className="w-full" />
+            <p className="text-sm text-gray-500 text-center">
+              Processing your resume...
+            </p>
           </div>
         )}
         
