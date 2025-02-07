@@ -35,43 +35,6 @@ export const JobMatcher = () => {
   const [matchedJobs, setMatchedJobs] = useState<JobMatch[] | null>(null);
   const { toast } = useToast();
 
-  // This function will be triggered by the webhook from Make.com
-  const processJobMatch = async (jobData: JobMatchRequest) => {
-    setLoading(true);
-    setProgress(10);
-    setMatchedJobs(null);
-
-    try {
-      console.log('Processing job match with data:', jobData);
-      
-      const { data: jobMatches, error } = await supabase.functions.invoke('process-job-match', {
-        method: 'POST',
-        body: jobData
-      });
-
-      if (error) {
-        console.error("Error processing job match:", error);
-        throw error;
-      }
-
-      setProgress(100);
-      setMatchedJobs(jobMatches);
-      toast({
-        title: "Success",
-        description: `Found matching jobs for ${jobData.jobTitle}`,
-      });
-    } catch (error) {
-      console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to process job matching",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const downloadResults = () => {
     if (!matchedJobs) return;
 
