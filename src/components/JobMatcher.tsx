@@ -38,6 +38,8 @@ export const JobMatcher = () => {
 
   const processJobMatches = async (makeData: MakeResponse) => {
     try {
+      console.log("Processing job matches with data:", makeData);
+      
       const { data: jobs, error } = await supabase.functions.invoke('process-job-match', {
         body: {
           jobTitle: makeData.jobTitle,
@@ -45,8 +47,12 @@ export const JobMatcher = () => {
         }
       });
 
-      if (error) throw error;
-      console.log("Processed job matches:", jobs);
+      if (error) {
+        console.error("Supabase function error:", error);
+        throw error;
+      }
+      
+      console.log("Received processed job matches:", jobs);
       return jobs;
     } catch (error) {
       console.error("Error processing job matches:", error);
@@ -96,6 +102,7 @@ export const JobMatcher = () => {
 
       setProgress(60);
 
+      console.log("Sending PDF URL to Make.com webhook");
       // Send to Make.com webhook and wait for response
       const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
         method: "POST",
@@ -113,6 +120,7 @@ export const JobMatcher = () => {
 
       // Process job matches using our Edge Function
       const processedJobs = await processJobMatches(makeData);
+      console.log("Setting matched jobs:", processedJobs);
       setMatchedJobs(processedJobs);
 
       setProgress(80);
@@ -181,7 +189,7 @@ export const JobMatcher = () => {
           </div>
         )}
         
-        {matchedJobs && (
+        {matchedJobs && matchedJobs.length > 0 && (
           <div className="space-y-4">
             <Table>
               <TableHeader>

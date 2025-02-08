@@ -25,9 +25,10 @@ serve(async (req) => {
     }
 
     // Call Adzuna API to search for matching jobs
-    const response = await fetch(
-      `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(jobTitle)}&content-type=application/json`
-    );
+    const apiUrl = `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(jobTitle)}&content-type=application/json`;
+    console.log('Calling Adzuna API:', apiUrl);
+
+    const response = await fetch(apiUrl);
 
     if (!response.ok) {
       console.error('Adzuna API error:', response.status);
@@ -48,9 +49,13 @@ serve(async (req) => {
     }));
 
     console.log('Processed matches:', matches.length);
-    return new Response(JSON.stringify(matches), {
+
+    const finalResponse = new Response(JSON.stringify(matches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+    
+    console.log('Sending response back to client');
+    return finalResponse;
   } catch (error) {
     console.error('Error processing job match:', error);
     return new Response(
