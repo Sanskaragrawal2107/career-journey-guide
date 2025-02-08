@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const COUNTRIES = ['gb', 'us', 'ca', 'de', 'fr', 'in', 'it', 'nl', 'pl', 'ru', 'sg']; // Supported Adzuna countries
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,33 +26,51 @@ serve(async (req) => {
       throw new Error('Missing required field: jobTitle is required');
     }
 
-    // Call Adzuna API to search for matching jobs
-    const apiUrl = `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${Deno.env.get('ADZUNA_APP_ID')}&app_key=${Deno.env.get('ADZUNA_API_KEY')}&results_per_page=10&what=${encodeURIComponent(jobTitle)}&content-type=application/json`;
-    console.log('Calling Adzuna API:', apiUrl);
+    // Fetch jobs from all supported countries
+    let allJobs = [];
+    const appId = Deno.env.get('ADZUNA_APP_ID');
+    const apiKey = Deno.env.get('ADZUNA_API_KEY');
 
-    const response = await fetch(apiUrl);
+    for (const country of COUNTRIES) {
+      try {
+        const apiUrl = `https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${appId}&app_key=${apiKey}&results_per_page=5&what=${encodeURIComponent(jobTitle)}&content-type=application/json`;
+        console.log(`Calling Adzuna API for country ${country}:`, apiUrl);
 
-    if (!response.ok) {
-      console.error('Adzuna API error:', response.status);
-      throw new Error('Failed to fetch jobs from Adzuna');
+        const response = await fetch(apiUrl);
+        if (response.ok) {
+          const data = await response.json();
+          allJobs = [...allJobs, ...data.results];
+          console.log(`Found ${data.results.length} jobs in ${country}`);
+        } else {
+          console.warn(`Failed to fetch jobs for ${country}:`, response.status);
+        }
+      } catch (error) {
+        console.error(`Error fetching jobs for ${country}:`, error);
+        // Continue with other countries even if one fails
+        continue;
+      }
     }
 
-    const data = await response.json();
-    console.log('Found jobs:', data.results.length);
+    console.log('Total jobs found across all countries:', allJobs.length);
 
     // Process and format job matches
-    const matches = data.results.map((job: any) => ({
+    const matches = allJobs.map((job: any) => ({
       title: job.title,
       company: job.company.display_name,
-      location: `${job.location.area.join(", ")}`,
+      location: job.location.area ? job.location.area.join(", ") : job.location.display_name,
       description: job.description,
       url: job.redirect_url,
       match_score: calculateMatchScore(job.description, job.title, jobTitle, skills || []),
     }));
 
-    console.log('Processed matches:', matches.length);
+    // Sort by match score descending and take top 10
+    const topMatches = matches
+      .sort((a, b) => b.match_score - a.match_score)
+      .slice(0, 10);
 
-    const finalResponse = new Response(JSON.stringify(matches), {
+    console.log('Processed matches:', topMatches.length);
+
+    const finalResponse = new Response(JSON.stringify(topMatches), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
     
