@@ -1,11 +1,10 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Upload } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -39,16 +38,16 @@ export const JobMatcher = () => {
   const processJobMatches = async (makeData: MakeResponse) => {
     try {
       console.log("Processing job matches with data:", makeData);
-      
+
       const { data: jobs, error } = await supabase.functions.invoke('process-job-match', {
-        body: makeData
+        body: makeData,
       });
 
       if (error) {
         console.error("Supabase function error:", error);
         throw error;
       }
-      
+
       console.log("Received processed job matches:", jobs);
       return jobs;
     } catch (error) {
@@ -81,7 +80,7 @@ export const JobMatcher = () => {
       // Upload file to Supabase
       const fileName = `${crypto.randomUUID()}.pdf`;
       const filePath = `${user.id}/${fileName}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('job_pdfs')
         .upload(filePath, file);
@@ -111,21 +110,11 @@ export const JobMatcher = () => {
         throw new Error("Failed to process resume");
       }
 
-      // Wait a moment for Make.com to process and send the POST request
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Parse the JSON response from Make.com
+      const jobData: MakeResponse = await makeResponse.json();
+      console.log("Received job data from Make.com:", jobData);
 
-      // Get the job data from Make.com as plain text first
-      const responseText = await makeResponse.text();
-      console.log("Make.com response:", responseText);
-
-      // If the response is just "Accepted", we know Make.com received our request
-      // We can now process the job match directly with the data we have
-      const jobData: MakeResponse = {
-        jobTitle: "Data Scientist Intern", // This matches what Make.com is sending
-        skills: ["Python", "NumPy", "pandas", "Robotic Process Automation (RPA)", "Microsoft Power BI", "Microsoft Excel"]
-      };
-
-      // Process job matches using our Edge Function
+      // Process job matches using the data from Make.com
       const processedJobs = await processJobMatches(jobData);
       console.log("Setting matched jobs:", processedJobs);
       setMatchedJobs(processedJobs);
@@ -146,7 +135,7 @@ export const JobMatcher = () => {
       console.error("Error processing file:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to process resume",
+        description: error instanceof Error ? error.message : "Failed to process resume",
         variant: "destructive",
       });
     } finally {
@@ -158,9 +147,9 @@ export const JobMatcher = () => {
   const downloadResults = () => {
     if (!matchedJobs) return;
 
-    const csvContent = "data:text/csv;charset=utf-8," + 
+    const csvContent = "data:text/csv;charset=utf-8," +
       "Job Title,Company,Location,Description,Match Score,URL\n" +
-      matchedJobs.map(job => 
+      matchedJobs.map(job =>
         `"${job.title}","${job.company}","${job.location}","${job.description.replace(/"/g, '""')}",${job.match_score},"${job.url}"`
       ).join("\n");
 
@@ -195,7 +184,7 @@ export const JobMatcher = () => {
             </p>
           </div>
         )}
-        
+
         {matchedJobs && matchedJobs.length > 0 && (
           <div className="space-y-4">
             <Table>
@@ -244,4 +233,3 @@ export const JobMatcher = () => {
     </Card>
   );
 };
-
