@@ -159,9 +159,9 @@ export const JobMatcher = () => {
     if (!matchedJobs) return;
 
     const csvContent = "data:text/csv;charset=utf-8," + 
-      "Job Title,Company,Location,Match Score,URL\n" +
+      "Job Title,Company,Location,Description,Match Score,URL\n" +
       matchedJobs.map(job => 
-        `"${job.title}","${job.company}","${job.location}",${job.match_score},"${job.url}"`
+        `"${job.title}","${job.company}","${job.location}","${job.description.replace(/"/g, '""')}",${job.match_score},"${job.url}"`
       ).join("\n");
 
     const encodedUri = encodeURI(csvContent);
@@ -244,3 +244,4 @@ export const JobMatcher = () => {
     </Card>
   );
 };
+
