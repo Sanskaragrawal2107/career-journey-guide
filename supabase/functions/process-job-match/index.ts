@@ -33,7 +33,8 @@ serve(async (req) => {
 
     for (const country of COUNTRIES) {
       try {
-        const apiUrl = `https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${appId}&app_key=${apiKey}&results_per_page=5&what=${encodeURIComponent(jobTitle)}&content-type=application/json`;
+        // Increased results_per_page to 20 to get more jobs per country
+        const apiUrl = `https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${appId}&app_key=${apiKey}&results_per_page=20&what=${encodeURIComponent(jobTitle)}&content-type=application/json`;
         console.log(`Calling Adzuna API for country ${country}:`, apiUrl);
 
         const response = await fetch(apiUrl);
@@ -63,10 +64,10 @@ serve(async (req) => {
       match_score: calculateMatchScore(job.description, job.title, jobTitle, skills || []),
     }));
 
-    // Sort by match score descending and take top 10
+    // Sort by match score descending and take top 100
     const topMatches = matches
       .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, 10);
+      .slice(0, 100);
 
     console.log('Processed matches:', topMatches.length);
 
