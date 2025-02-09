@@ -57,6 +57,47 @@ export type Database = {
           },
         ]
       }
+      coursera_recommendations: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          instructor: string | null
+          resume_id: string | null
+          skill_tags: string[] | null
+          title: string
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instructor?: string | null
+          resume_id?: string | null
+          skill_tags?: string[] | null
+          title: string
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instructor?: string | null
+          resume_id?: string | null
+          skill_tags?: string[] | null
+          title?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coursera_recommendations_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_roadmaps: {
         Row: {
           created_at: string | null
