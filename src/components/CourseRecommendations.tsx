@@ -3,114 +3,122 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { Loader2, ExternalLink, BookOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ExternalLink } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
-interface Course {
+interface CourseRecommendation {
   id: string;
   title: string;
-  description: string | null;
+  description: string;
   url: string;
   instructor: string | null;
-  skill_tags: string[] | null;
+  skill_tags: string[];
 }
 
-export function CourseRecommendations({ resumeId }: { resumeId: string }) {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+export function CourseRecommendations() {
   const { toast } = useToast();
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
 
+  // Fetch the latest resume ID to use for course recommendations
   useEffect(() => {
-    fetchCourses();
-  }, [resumeId]);
+    const fetchLatestResume = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('resumes')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-  const fetchCourses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("coursera_recommendations")
-        .select("*")
-        .eq("resume_id", resumeId)
-        .order("created_at", { ascending: false });
+        if (error) throw error;
+        if (data) {
+          setSelectedResumeId(data.id);
+        }
+      } catch (error) {
+        console.error('Error fetching latest resume:', error);
+      }
+    };
 
-      if (error) throw error;
+    fetchLatestResume();
+  }, []);
 
-      setCourses(data || []);
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load course recommendations",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Query to fetch course recommendations
+  const { data: courses = [], isLoading } = useQuery({
+    queryKey: ['coursera_recommendations', selectedResumeId],
+    queryFn: async () => {
+      if (!selectedResumeId) return [];
 
-  if (loading) {
+      try {
+        const { data, error } = await supabase
+          .from('coursera_recommendations')
+          .select('*')
+          .eq('resume_id', selectedResumeId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data as CourseRecommendation[];
+      } catch (error) {
+        console.error('Error fetching course recommendations:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load course recommendations",
+          variant: "destructive",
+        });
+        return [];
+      }
+    },
+    enabled: !!selectedResumeId,
+    refetchInterval: 5000, // Poll every 5 seconds to check for new recommendations
+  });
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex flex-col items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p className="text-gray-600">Loading course recommendations...</p>
       </div>
     );
   }
 
   if (courses.length === 0) {
     return (
-      <div className="text-center p-8">
-        <p>No course recommendations available yet. Please upload your resume to get personalized course suggestions.</p>
+      <div className="text-center py-12 space-y-4">
+        <BookOpen className="h-16 w-16 text-gray-400 mx-auto" />
+        <h3 className="text-xl font-medium">No course recommendations yet</h3>
+        <p className="text-gray-600 max-w-md mx-auto">
+          Upload your resume to get personalized course recommendations based on your skills and career goals.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">Recommended Courses</h3>
-        <p className="text-sm text-gray-500">Personalized course recommendations based on your resume</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {courses.map((course) => (
-          <Card key={course.id} className="p-5 flex flex-col h-full">
-            <div className="flex-1">
-              <h4 className="font-medium text-base">{course.title}</h4>
-              
-              {course.instructor && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Instructor: {course.instructor}
-                </p>
-              )}
-              
-              <div className="mt-2">
-                {course.skill_tags && course.skill_tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {course.skill_tags.slice(0, 3).map((skill, index) => (
-                      <Badge key={index} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
-                    {course.skill_tags.length > 3 && (
-                      <Badge variant="outline">+{course.skill_tags.length - 3} more</Badge>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {course.description && (
-                <p className="text-sm text-gray-600 mt-3 line-clamp-3">
-                  {course.description}
-                </p>
-              )}
+          <Card key={course.id} className="p-6 hover:shadow-md transition-shadow">
+            <h3 className="font-semibold text-lg mb-2">{course.title}</h3>
+            
+            {course.instructor && (
+              <p className="text-sm text-gray-600 mb-2">Instructor: {course.instructor}</p>
+            )}
+            
+            <p className="text-gray-700 mb-4 line-clamp-3">{course.description}</p>
+            
+            <div className="flex flex-wrap gap-2 mb-4">
+              {course.skill_tags && course.skill_tags.map((tag, index) => (
+                <Badge key={index} variant="secondary">{tag}</Badge>
+              ))}
             </div>
             
             <Button 
               variant="outline" 
-              className="mt-4 w-full flex items-center justify-center"
-              onClick={() => window.open(course.url, "_blank")}
+              className="w-full flex items-center justify-center gap-2"
+              onClick={() => window.open(course.url, '_blank')}
             >
-              <ExternalLink className="h-4 w-4 mr-2" />
+              <ExternalLink className="h-4 w-4" />
               View Course
             </Button>
           </Card>

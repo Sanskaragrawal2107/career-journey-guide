@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DashboardCard } from "@/components/DashboardCard";
 import { FileText, TrendingUp, BookOpen, Target, History, Briefcase } from "lucide-react";
@@ -7,6 +8,7 @@ import { LearningRoadmap } from "@/components/LearningRoadmap";
 import { CareerPathUploader } from "@/components/CareerPathUploader";
 import { CareerPathProgress } from "@/components/CareerPathProgress";
 import { JobMatcher } from "@/components/JobMatcher";
+import { CourseRecommendations } from "@/components/CourseRecommendations";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -14,6 +16,7 @@ const Dashboard = () => {
   const [showLearningRoadmap, setShowLearningRoadmap] = useState(false);
   const [showCareerPath, setShowCareerPath] = useState(false);
   const [showJobMatcher, setShowJobMatcher] = useState(false);
+  const [showCourseRecommendations, setShowCourseRecommendations] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
 
   const dashboardItems = [
@@ -47,17 +50,8 @@ const Dashboard = () => {
       title: "Learning Courses",
       description: "Access curated learning resources",
       icon: <BookOpen className="w-6 h-6 text-primary" />,
-      onClick: () => {
-        if (selectedResumeId) {
-          setShowLearningRoadmap(true);
-        } else {
-          toast({
-            title: "No Resume Selected",
-            description: "Please upload or select a resume first",
-            variant: "destructive",
-          });
-        }
-      },
+      onClick: () => setShowCourseRecommendations(true),
+      acceptFile: true,
     },
     {
       title: "Job Matcher",
@@ -128,6 +122,19 @@ const Dashboard = () => {
               </button>
             </div>
             <JobMatcher />
+          </div>
+        ) : showCourseRecommendations ? (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Learning Courses</h2>
+              <button
+                onClick={() => setShowCourseRecommendations(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <CourseRecommendations />
           </div>
         ) : (
           <div>
