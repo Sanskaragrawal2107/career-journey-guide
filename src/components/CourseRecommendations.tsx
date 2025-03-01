@@ -26,6 +26,8 @@ export function CourseRecommendations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<CourseRecommendation[]>([]);
+  const [suggestedTitle, setSuggestedTitle] = useState<string | null>(null);
+  const [processingRecommendation, setProcessingRecommendation] = useState(false);
 
   // Fetch the latest resume ID to use for course recommendations
   useEffect(() => {
@@ -87,6 +89,82 @@ export function CourseRecommendations() {
     refetchInterval: 5000, // Poll every 5 seconds to check for new recommendations
   });
 
+  // Function to search for courses using the Coursera API and suggested title
+  const searchCoursesWithSuggestedTitle = async () => {
+    if (!suggestedTitle) {
+      toast({
+        title: "Error",
+        description: "No suggested title available. Please upload a resume first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcessingRecommendation(true);
+    try {
+      console.log('Searching for courses with suggested title:', suggestedTitle);
+      
+      // Call the Coursera API with the suggested title
+      const response = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          searchTerm: suggestedTitle,
+          resumeId: selectedResumeId || "search-only"
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Search results from API for suggested title:', data);
+
+      if (data && data.courses && Array.isArray(data.courses)) {
+        // Transform data if needed to match CourseRecommendation interface
+        const formattedResults = data.courses.map((course: any, index: number) => ({
+          id: course.id || `search-result-${index}`,
+          title: course.title || 'Untitled Course',
+          description: course.description || '',
+          url: course.url || '#',
+          instructor: course.instructor || null,
+          skill_tags: Array.isArray(course.skill_tags) ? course.skill_tags : []
+        }));
+
+        setSearchResults(formattedResults);
+        
+        // If we have a resume ID, also store these results
+        if (selectedResumeId) {
+          await storeSearchResults(formattedResults, selectedResumeId);
+        }
+
+        toast({
+          title: "Success",
+          description: `Found ${formattedResults.length} courses based on your resume profile`,
+        });
+      } else {
+        setSearchResults([]);
+        toast({
+          title: "No results",
+          description: "No courses found for your resume profile",
+        });
+      }
+    } catch (error) {
+      console.error('Error searching for courses with suggested title:', error);
+      toast({
+        title: "Error",
+        description: "Failed to search for courses. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingRecommendation(false);
+    }
+  };
+
+  // Function for manual search
   const searchCourses = async () => {
     if (!searchTerm.trim()) {
       toast({
@@ -186,6 +264,7 @@ export function CourseRecommendations() {
     try {
       setIsUploading(true);
       setUploadProgress(10);
+      setSuggestedTitle(null); // Reset suggested title
 
       // Generate a unique file path
       const filePath = `resumes/${Date.now()}_${file.name}`;
@@ -221,25 +300,49 @@ export function CourseRecommendations() {
         .from('resumes')
         .getPublicUrl(filePath);
       
-      // Call the Supabase Edge Function to process the resume
-      const { error: fnError } = await supabase.functions.invoke('process-learning-courses', {
-        body: { 
+      // Call the Make.com webhook directly to get a suggested title
+      const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
           fileUrl: publicUrl,
           resumeId: resumeId
-        }
-      });
-
-      if (fnError) throw fnError;
-      setUploadProgress(100);
-      
-      toast({
-        title: "Success",
-        description: "Resume uploaded successfully. Analyzing for course recommendations...",
+        }),
       });
       
-      // Refetch the courses after a short delay
-      setTimeout(() => refetch(), 2000);
+      if (!makeResponse.ok) {
+        throw new Error(`Make.com webhook failed: ${makeResponse.statusText}`);
+      }
       
+      const makeData = await makeResponse.json();
+      console.log('Response from Make.com webhook:', makeData);
+      
+      // Extract the suggested title from Make.com response
+      if (makeData && makeData.suggestedTitle) {
+        setSuggestedTitle(makeData.suggestedTitle);
+        toast({
+          title: "Success",
+          description: `Resume analyzed. Suggested title: ${makeData.suggestedTitle}`,
+        });
+        
+        // After getting the suggested title, search for courses automatically
+        setUploadProgress(100);
+        setIsUploading(false);
+        
+        // Set a small delay before triggering the search to ensure UI updates first
+        setTimeout(() => {
+          searchCoursesWithSuggestedTitle();
+        }, 500);
+      } else {
+        setUploadProgress(100);
+        toast({
+          title: "Note",
+          description: "Resume uploaded, but no course title suggestion received.",
+        });
+        setIsUploading(false);
+      }
     } catch (error) {
       console.error('Error processing resume for courses:', error);
       toast({
@@ -247,11 +350,10 @@ export function CourseRecommendations() {
         description: "Failed to upload resume. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsUploading(false);
       setUploadProgress(0);
     }
-  }, [toast, refetch]);
+  }, [toast]);
 
   // Show loader for uploading state
   if (isUploading) {
@@ -269,6 +371,19 @@ export function CourseRecommendations() {
       <div className="flex flex-col items-center justify-center p-12">
         <Loader2 className="h-8 w-8 animate-spin mb-4" />
         <p className="text-gray-600">Loading course recommendations...</p>
+      </div>
+    );
+  }
+
+  // Show loader when processing recommendation based on suggested title
+  if (processingRecommendation) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p className="text-gray-600">Finding courses based on your resume profile...</p>
+        {suggestedTitle && (
+          <p className="text-gray-600 mt-2">Suggested area: {suggestedTitle}</p>
+        )}
       </div>
     );
   }
@@ -294,11 +409,24 @@ export function CourseRecommendations() {
           </Button>
         </div>
 
+        {suggestedTitle && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4 text-green-700">
+            <p className="font-medium">Based on your resume, we recommend courses in: {suggestedTitle}</p>
+            <Button 
+              variant="outline" 
+              className="mt-2"
+              onClick={searchCoursesWithSuggestedTitle}
+            >
+              Find courses in this area
+            </Button>
+          </div>
+        )}
+
         <div className="text-center py-8 space-y-4">
           <BookOpen className="h-16 w-16 text-gray-400 mx-auto" />
           <h3 className="text-xl font-medium">No course recommendations yet</h3>
           <p className="text-gray-600 max-w-md mx-auto">
-            Search for courses by title, or upload your resume to get personalized course recommendations.
+            Upload your resume to get personalized course recommendations based on your profile.
           </p>
           <div className="mt-6">
             <label htmlFor="resume-upload" className="cursor-pointer">
@@ -337,6 +465,19 @@ export function CourseRecommendations() {
           Search
         </Button>
       </div>
+      
+      {suggestedTitle && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 text-green-700">
+          <p className="font-medium">Based on your resume, we recommend courses in: {suggestedTitle}</p>
+          <Button 
+            variant="outline" 
+            className="mt-2"
+            onClick={searchCoursesWithSuggestedTitle}
+          >
+            Find more courses in this area
+          </Button>
+        </div>
+      )}
       
       {searchResults.length > 0 && (
         <div className="flex justify-between items-center">

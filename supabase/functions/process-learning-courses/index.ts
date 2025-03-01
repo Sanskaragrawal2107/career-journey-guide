@@ -72,44 +72,13 @@ serve(async (req) => {
         throw new Error(`Make.com webhook failed: ${makeResponse.status} ${errorText}`)
       }
 
-      // Get the response from Make.com which should contain course recommendations
+      // Get the response from Make.com which should contain the suggested title
       const makeData = await makeResponse.json()
       console.log('Response from Make.com webhook:', makeData)
 
-      // Check if the Make.com response contains course recommendations
-      if (makeData && makeData.courses && Array.isArray(makeData.courses)) {
-        // Store each course recommendation in the database
-        for (const course of makeData.courses) {
-          try {
-            const { error: insertError } = await supabase
-              .from('coursera_recommendations')
-              .insert({
-                resume_id: resumeId,
-                title: course.title || 'Untitled Course',
-                description: course.description || '',
-                url: course.url || '#',
-                instructor: course.instructor || null,
-                skill_tags: Array.isArray(course.skill_tags) ? course.skill_tags : []
-              })
-
-            if (insertError) {
-              console.error('Error inserting course recommendation:', insertError)
-            } else {
-              console.log('Successfully inserted course recommendation')
-            }
-          } catch (error) {
-            console.error('Exception when inserting course recommendation:', error)
-          }
-        }
-      } else {
-        console.log('No courses found in Make.com response or invalid format')
-      }
-
+      // Return the Make.com response with the suggested title
       return new Response(
-        JSON.stringify({
-          message: 'Resume processed and course recommendations stored',
-          success: true
-        }),
+        JSON.stringify(makeData),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } else {
