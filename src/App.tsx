@@ -18,32 +18,24 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const checkSession = async () => {
-      // Check if we have a hash fragment (from OAuth redirect)
-      if (window.location.hash && window.location.hash.includes('access_token')) {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error("Error getting session:", error);
-        }
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Error getting session:", error);
+      } else {
         setSession(data.session);
-        setLoading(false);
-        return;
       }
 
-      // Otherwise check session normally
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
       setLoading(false);
     };
 
     checkSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => subscription?.unsubscribe();
   }, [location]);
 
   if (loading) {
