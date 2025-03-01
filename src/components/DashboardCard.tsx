@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Upload } from "lucide-react";
@@ -197,6 +198,55 @@ export const DashboardCard = ({
           title: "Processing",
           description: "Career path is being generated. Please wait a moment.",
         });
+      } else if (title === "Find Learning Courses") {
+        console.log('Creating resume record for learning courses');
+        const { data: resumeData, error: dbError } = await supabase
+          .from("resumes")
+          .insert({
+            file_path: filePath,
+            user_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (dbError || !resumeData) {
+          console.error('Database error:', dbError);
+          throw new Error("Failed to create resume record");
+        }
+
+        try {
+          console.log('Getting signed URL for learning course recommendations...');
+          const signedUrl = await verifyFileAccess(filePath);
+
+          console.log('Calling learning courses function');
+          const { error: funcError } = await supabase.functions.invoke('process-learning-courses', {
+            body: { 
+              fileUrl: signedUrl,
+              resumeId: resumeData.id 
+            }
+          });
+
+          if (funcError) {
+            console.error('Function error:', funcError);
+            throw new Error("Failed to process resume for course recommendations");
+          }
+          
+          toast({
+            title: "Success",
+            description: "Resume processed. Course recommendations will be available shortly.",
+          });
+          
+          // Call the onClick to navigate to the recommendations page
+          onClick();
+          
+        } catch (error) {
+          console.error('Error processing learning courses:', error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to process resume for courses",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("Error uploading resume:", error);
@@ -213,7 +263,7 @@ export const DashboardCard = ({
   const handleClick = () => {
     if (loading) return;
 
-    if ((title === "Create New Resume" || title === "Career Path Suggestions") && acceptFile) {
+    if ((title === "Create New Resume" || title === "Career Path Suggestions" || title === "Find Learning Courses") && acceptFile) {
       fileInputRef.current?.click();
     } else {
       onClick();
