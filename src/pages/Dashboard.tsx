@@ -1,10 +1,9 @@
 
 import { useState } from "react";
 import { DashboardCard } from "@/components/DashboardCard";
-import { FileText, TrendingUp, BookOpen, Target, History, Briefcase } from "lucide-react";
+import { FileText, TrendingUp, Target, History, Briefcase } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ResumeManager } from "@/components/ResumeManager";
-import { LearningRoadmap } from "@/components/LearningRoadmap";
 import { CareerPathUploader } from "@/components/CareerPathUploader";
 import { CareerPathProgress } from "@/components/CareerPathProgress";
 import { JobMatcher } from "@/components/JobMatcher";
@@ -13,7 +12,6 @@ import { SkillGapAnalysis } from "@/components/SkillGapAnalysis";
 const Dashboard = () => {
   const { toast } = useToast();
   const [showResumeManager, setShowResumeManager] = useState(false);
-  const [showLearningRoadmap, setShowLearningRoadmap] = useState(false);
   const [showCareerPath, setShowCareerPath] = useState(false);
   const [showJobMatcher, setShowJobMatcher] = useState(false);
   const [showSkillGapAnalysis, setShowSkillGapAnalysis] = useState(false);
@@ -47,12 +45,6 @@ const Dashboard = () => {
       onClick: () => setShowCareerPath(true),
     },
     {
-      title: "Learning Roadmap",
-      description: "Create your personalized learning plan",
-      icon: <BookOpen className="w-6 h-6 text-primary" />,
-      onClick: () => setShowLearningRoadmap(true),
-    },
-    {
       title: "Job Matcher",
       description: "Find jobs matching your resume (85%+ match)",
       icon: <Briefcase className="w-6 h-6 text-primary" />,
@@ -78,19 +70,6 @@ const Dashboard = () => {
               </button>
             </div>
             <ResumeManager />
-          </div>
-        ) : showLearningRoadmap && selectedResumeId ? (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Learning Roadmap</h2>
-              <button
-                onClick={() => setShowLearningRoadmap(false)}
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-            <LearningRoadmap resumeId={selectedResumeId} />
           </div>
         ) : showCareerPath ? (
           <div>

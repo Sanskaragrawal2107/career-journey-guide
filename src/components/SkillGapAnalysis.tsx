@@ -8,30 +8,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Download, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface SkillGap {
-  current_skills: string[];
-  missing_skills: string[];
-  recommended_skills: string[];
+interface SkillGapResponse {
+  skillGaps: string[];
 }
 
 export const SkillGapAnalysis = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [skillGap, setSkillGap] = useState<SkillGap | null>(null);
+  const [skillGaps, setSkillGaps] = useState<string[] | null>(null);
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,10 +78,10 @@ export const SkillGapAnalysis = () => {
         throw new Error("Failed to process resume");
       }
 
-      // Parse the JSON response from Make.com
-      const skillGapData: SkillGap = await makeResponse.json();
+      // Parse the JSON response from Make.com with the new format
+      const skillGapData: SkillGapResponse = await makeResponse.json();
       console.log("Received skill gap data:", skillGapData);
-      setSkillGap(skillGapData);
+      setSkillGaps(skillGapData.skillGaps);
 
       setProgress(80);
       toast({
@@ -119,13 +109,11 @@ export const SkillGapAnalysis = () => {
   };
 
   const downloadResults = () => {
-    if (!skillGap) return;
+    if (!skillGaps) return;
 
     const csvContent = "data:text/csv;charset=utf-8," +
-      "Current Skills,Missing Skills,Recommended Skills\n" +
-      skillGap.current_skills.join(", ") + "," +
-      skillGap.missing_skills.join(", ") + "," +
-      skillGap.recommended_skills.join(", ");
+      "Skill Gaps\n" +
+      skillGaps.join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -149,24 +137,26 @@ export const SkillGapAnalysis = () => {
               className="max-w-sm"
             />
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Info className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs p-4">
-              <div className="space-y-2">
-                <p className="font-medium">How to download your LinkedIn resume:</p>
-                <ol className="list-decimal pl-4 text-sm space-y-1">
-                  <li>Go to your LinkedIn profile</li>
-                  <li>Click on "More..." button below your profile header</li>
-                  <li>Select "Save to PDF"</li>
-                  <li>Upload the downloaded PDF here for better skill analysis</li>
-                </ol>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs p-4">
+                <div className="space-y-2">
+                  <p className="font-medium">How to download your LinkedIn resume:</p>
+                  <ol className="list-decimal pl-4 text-sm space-y-1">
+                    <li>Go to your LinkedIn profile</li>
+                    <li>Click on "More..." button below your profile header</li>
+                    <li>Select "Save to PDF"</li>
+                    <li>Upload the downloaded PDF here for better skill analysis</li>
+                  </ol>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
@@ -185,38 +175,18 @@ export const SkillGapAnalysis = () => {
           </div>
         )}
 
-        {skillGap && (
+        {skillGaps && skillGaps.length > 0 && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Your Skill Gap Analysis</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-4 bg-green-50 border-green-200">
-                <h4 className="font-medium text-green-800 mb-2">Current Skills</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  {skillGap.current_skills.map((skill, i) => (
-                    <li key={i} className="text-sm">{skill}</li>
-                  ))}
-                </ul>
-              </Card>
-              
-              <Card className="p-4 bg-red-50 border-red-200">
-                <h4 className="font-medium text-red-800 mb-2">Missing Skills</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  {skillGap.missing_skills.map((skill, i) => (
-                    <li key={i} className="text-sm">{skill}</li>
-                  ))}
-                </ul>
-              </Card>
-              
-              <Card className="p-4 bg-blue-50 border-blue-200">
-                <h4 className="font-medium text-blue-800 mb-2">Recommended Skills</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  {skillGap.recommended_skills.map((skill, i) => (
-                    <li key={i} className="text-sm">{skill}</li>
-                  ))}
-                </ul>
-              </Card>
-            </div>
+            <Card className="p-4 bg-red-50 border-red-200">
+              <h4 className="font-medium text-red-800 mb-2">Skills You Should Learn</h4>
+              <ul className="list-disc pl-5 space-y-1">
+                {skillGaps.map((skill, i) => (
+                  <li key={i} className="text-sm">{skill}</li>
+                ))}
+              </ul>
+            </Card>
             
             <Button onClick={downloadResults} variant="outline" className="w-full">
               <Download className="mr-2 h-4 w-4" />
