@@ -36,7 +36,7 @@ const Dashboard = () => {
       description: "Identify skills needed for your dream role",
       icon: <Target className="w-6 h-6 text-primary" />,
       onClick: () => setShowSkillGapAnalysis(true),
-      acceptFile: true,
+      // Remove acceptFile property from Skill Gap Analysis card
     },
     {
       title: "Career Path Suggestions",
