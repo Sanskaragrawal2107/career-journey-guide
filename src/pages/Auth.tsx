@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -49,10 +50,11 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      // The key change is here - we're using the /auth/callback route instead of /dashboard
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) throw error;
