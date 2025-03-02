@@ -8,7 +8,7 @@ import { LearningRoadmap } from "@/components/LearningRoadmap";
 import { CareerPathUploader } from "@/components/CareerPathUploader";
 import { CareerPathProgress } from "@/components/CareerPathProgress";
 import { JobMatcher } from "@/components/JobMatcher";
-import { CourseRecommendations } from "@/components/CourseRecommendations";
+import { SkillGapAnalysis } from "@/components/SkillGapAnalysis";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -16,7 +16,7 @@ const Dashboard = () => {
   const [showLearningRoadmap, setShowLearningRoadmap] = useState(false);
   const [showCareerPath, setShowCareerPath] = useState(false);
   const [showJobMatcher, setShowJobMatcher] = useState(false);
-  const [showCourseRecommendations, setShowCourseRecommendations] = useState(false);
+  const [showSkillGapAnalysis, setShowSkillGapAnalysis] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
 
   const dashboardItems = [
@@ -37,7 +37,7 @@ const Dashboard = () => {
       title: "Skill Gap Analysis",
       description: "Identify skills needed for your dream role",
       icon: <Target className="w-6 h-6 text-primary" />,
-      onClick: () => {},
+      onClick: () => setShowSkillGapAnalysis(true),
       acceptFile: true,
     },
     {
@@ -47,11 +47,10 @@ const Dashboard = () => {
       onClick: () => setShowCareerPath(true),
     },
     {
-      title: "Learning Courses",
-      description: "Access curated learning resources",
+      title: "Learning Roadmap",
+      description: "Create your personalized learning plan",
       icon: <BookOpen className="w-6 h-6 text-primary" />,
-      onClick: () => setShowCourseRecommendations(true),
-      acceptFile: true,
+      onClick: () => setShowLearningRoadmap(true),
     },
     {
       title: "Job Matcher",
@@ -123,18 +122,18 @@ const Dashboard = () => {
             </div>
             <JobMatcher />
           </div>
-        ) : showCourseRecommendations ? (
+        ) : showSkillGapAnalysis ? (
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Learning Courses</h2>
+              <h2 className="text-xl font-semibold">Skill Gap Analysis</h2>
               <button
-                onClick={() => setShowCourseRecommendations(false)}
+                onClick={() => setShowSkillGapAnalysis(false)}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
                 Back to Dashboard
               </button>
             </div>
-            <CourseRecommendations />
+            <SkillGapAnalysis />
           </div>
         ) : (
           <div>
