@@ -1,32 +1,26 @@
-
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-
-const features = [
-  "Resume Analysis",
-  "Skill Gap Detection",
-  "Career Path Suggestions",
-  "Learning Resources",
-  "Progress Tracking",
-];
-
+const features = ["Resume Analysis", "Skill Gap Detection", "Career Path Suggestions", "Learning Resources", "Progress Tracking"];
 export const PricingSection = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const handleSubscribe = async () => {
     try {
-      const { data } = await supabase.auth.getSession();
+      const {
+        data
+      } = await supabase.auth.getSession();
       if (data.session) {
         navigate("/subscription");
       } else {
         // Redirect to auth page with return URL
         toast({
           title: "Login Required",
-          description: "Please sign in to subscribe",
+          description: "Please sign in to subscribe"
         });
         navigate("/auth");
       }
@@ -35,9 +29,7 @@ export const PricingSection = () => {
       navigate("/auth");
     }
   };
-
-  return (
-    <div className="py-24 sm:py-32">
+  return <div className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-base font-semibold leading-7 text-primary">Pricing</h2>
@@ -58,16 +50,14 @@ export const PricingSection = () => {
                 Perfect for professionals starting their career journey
               </p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">$9</span>
+                <span className="text-4xl font-bold tracking-tight text-gray-900">₹787</span>
                 <span className="text-sm font-semibold leading-6 text-gray-600">/month</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
-                {features.map((feature) => (
-                  <li key={feature} className="flex gap-x-3">
+                {features.map(feature => <li key={feature} className="flex gap-x-3">
                     <Check className="h-6 w-5 flex-none text-primary" />
                     {feature}
-                  </li>
-                ))}
+                  </li>)}
               </ul>
             </div>
             <Button className="mt-8 bg-primary hover:bg-primary-700" onClick={handleSubscribe}>
@@ -94,12 +84,10 @@ export const PricingSection = () => {
                 <span className="text-sm font-semibold leading-6 text-gray-600">/year</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
-                {features.map((feature) => (
-                  <li key={feature} className="flex gap-x-3">
+                {features.map(feature => <li key={feature} className="flex gap-x-3">
                     <Check className="h-6 w-5 flex-none text-primary" />
                     {feature}
-                  </li>
-                ))}
+                  </li>)}
               </ul>
             </div>
             <Button className="mt-8 bg-primary hover:bg-primary-700" onClick={handleSubscribe}>
@@ -108,6 +96,5 @@ export const PricingSection = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
