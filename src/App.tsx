@@ -6,10 +6,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SubscriptionGuard } from "@/components/SubscriptionGuard";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import { Subscription } from "@/components/Subscription";
 
 const queryClient = new QueryClient();
 
@@ -74,10 +76,20 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route
+            path="/subscription"
+            element={
+              <PrivateRoute>
+                <Subscription />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="/dashboard"
             element={
               <PrivateRoute>
-                <Dashboard />
+                <SubscriptionGuard>
+                  <Dashboard />
+                </SubscriptionGuard>
               </PrivateRoute>
             }
           />

@@ -1,5 +1,9 @@
+
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const features = [
   "Resume Analysis",
@@ -10,6 +14,28 @@ const features = [
 ];
 
 export const PricingSection = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleSubscribe = async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        navigate("/subscription");
+      } else {
+        // Redirect to auth page with return URL
+        toast({
+          title: "Login Required",
+          description: "Please sign in to subscribe",
+        });
+        navigate("/auth");
+      }
+    } catch (error) {
+      console.error('Error checking session:', error);
+      navigate("/auth");
+    }
+  };
+
   return (
     <div className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -44,7 +70,7 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button className="mt-8 bg-primary hover:bg-primary-700">
+            <Button className="mt-8 bg-primary hover:bg-primary-700" onClick={handleSubscribe}>
               Subscribe Monthly
             </Button>
           </div>
@@ -76,7 +102,7 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button className="mt-8 bg-primary hover:bg-primary-700">
+            <Button className="mt-8 bg-primary hover:bg-primary-700" onClick={handleSubscribe}>
               Subscribe Yearly
             </Button>
           </div>
