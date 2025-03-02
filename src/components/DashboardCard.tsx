@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Upload } from "lucide-react";
@@ -197,9 +198,60 @@ export const DashboardCard = ({
           title: "Processing",
           description: "Career path is being generated. Please wait a moment.",
         });
-      } else if (title === "Skill Gap Analysis") {
-        // Immediately go to Skill Gap Analysis page and let it handle the file
-        onClick();
+      } else if (title === "Learning Courses") {
+        console.log('Creating resume record for learning courses');
+        const { data: resumeData, error: dbError } = await supabase
+          .from("resumes")
+          .insert({
+            file_path: filePath,
+            user_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (dbError || !resumeData) {
+          console.error('Database error:', dbError);
+          throw new Error("Failed to create resume record");
+        }
+
+        try {
+          console.log('Getting signed URL for learning course recommendations...');
+          const signedUrl = await verifyFileAccess(filePath);
+
+          // Update the webhook URL to the new one for learning courses
+          console.log('Sending to Learning Courses webhook');
+          const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              fileUrl: signedUrl,
+              resumeId: resumeData.id 
+            }),
+          });
+
+          if (!makeResponse.ok) {
+            const responseText = await makeResponse.text();
+            console.error('Make.com error response:', responseText);
+            throw new Error("Failed to process resume via Make.com");
+          }
+          
+          console.log('Learning Courses webhook called successfully');
+          toast({
+            title: "Success",
+            description: "Resume uploaded successfully. Course recommendations will be available shortly.",
+          });
+          
+          // Call the onClick to navigate to the recommendations page
+          onClick();
+          
+        } catch (error) {
+          console.error('Error processing learning courses:', error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to process resume for courses",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("Error uploading resume:", error);
@@ -216,7 +268,7 @@ export const DashboardCard = ({
   const handleClick = () => {
     if (loading) return;
 
-    if ((title === "Create New Resume" || title === "Career Path Suggestions" || title === "Skill Gap Analysis") && acceptFile) {
+    if ((title === "Create New Resume" || title === "Career Path Suggestions" || title === "Learning Courses") && acceptFile) {
       fileInputRef.current?.click();
     } else {
       onClick();
@@ -236,7 +288,7 @@ export const DashboardCard = ({
           <div className="p-2 bg-primary-50 rounded-lg">
             {loading ? (
               <Loader2 className="h-6 w-6 animate-spin" />
-            ) : title === "Create New Resume" || (title === "Career Path Suggestions" && acceptFile) || (title === "Skill Gap Analysis" && acceptFile) ? (
+            ) : title === "Create New Resume" || (title === "Career Path Suggestions" && acceptFile) || (title === "Learning Courses" && acceptFile) ? (
               <Upload className="h-6 w-6 text-primary" />
             ) : (
               icon
