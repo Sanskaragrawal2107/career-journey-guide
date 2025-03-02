@@ -50,7 +50,7 @@ export const PricingSection = () => {
                 Perfect for professionals starting their career journey
               </p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">₹787</span>
+                <span className="text-4xl font-bold tracking-tight text-gray-900">₹770</span>
                 <span className="text-sm font-semibold leading-6 text-gray-600">/month</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
@@ -80,7 +80,7 @@ export const PricingSection = () => {
                 Best value for committed career growth
               </p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">$89</span>
+                <span className="text-4xl font-bold tracking-tight text-gray-900">₹ 7700</span>
                 <span className="text-sm font-semibold leading-6 text-gray-600">/year</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
