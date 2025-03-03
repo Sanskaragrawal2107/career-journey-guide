@@ -1,76 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Coffee, Briefcase, Sparkles, Rocket, Star, ChartBar } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
 
 export const Hero = () => {
   const navigate = useNavigate();
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
-  const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const checkInitialAuthStatus = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error checking initial session:', error);
-          setIsUserLoggedIn(false);
-          return;
-        }
-        
-        setIsUserLoggedIn(!!data.session);
-      } catch (error) {
-        console.error('Error in initial auth check:', error);
-        setIsUserLoggedIn(false);
-      }
-    };
-    
-    checkInitialAuthStatus();
-    
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsUserLoggedIn(!!session);
-    });
-    
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const handleStartJourney = async () => {
-    try {
-      setIsCheckingAuth(true);
-      
-      if (isUserLoggedIn !== null) {
-        if (isUserLoggedIn) {
-          navigate("/dashboard");
-        } else {
-          navigate("/auth", { state: { returnTo: "/dashboard" } });
-        }
-        return;
-      }
-      
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Error checking session:', error);
-        toast.error("Error checking authentication status. Please try again.");
-        return;
-      }
-      
-      if (data.session) {
-        navigate("/dashboard");
-      } else {
-        navigate("/auth", { state: { returnTo: "/dashboard" } });
-      }
-    } catch (error) {
-      console.error('Error checking session:', error);
-      toast.error("Failed to check authentication status. Please try again.");
-    } finally {
-      setIsCheckingAuth(false);
-    }
-  };
 
   return (
     <div className="relative isolate px-6 pt-14 lg:px-8">
@@ -99,17 +32,16 @@ export const Hero = () => {
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6 animate-fade-in">
             <Button
-              onClick={handleStartJourney}
+              onClick={() => navigate("/auth")}
               className="bg-primary hover:bg-primary-700 text-white transform transition-all hover:scale-105 group"
               size="lg"
-              disabled={isCheckingAuth}
             >
-              <span>{isCheckingAuth ? 'Checking...' : 'Start Your Journey'}</span>
+              <span>Start Your Journey</span>
               <Rocket className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate("/subscription")}
+              onClick={() => navigate("/pricing")}
               size="lg"
               className="transform transition-all hover:scale-105 group"
             >

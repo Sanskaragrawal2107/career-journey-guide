@@ -1,85 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { Check, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { Check } from "lucide-react";
 
-const features = ["Resume Analysis", "Skill Gap Detection", "Career Path Suggestions", "Learning Resources", "Progress Tracking"];
+const features = [
+  "Resume Analysis",
+  "Skill Gap Detection",
+  "Career Path Suggestions",
+  "Learning Resources",
+  "Progress Tracking",
+];
 
 export const PricingSection = () => {
-  const navigate = useNavigate();
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
-  const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean | null>(null);
-  
-  useEffect(() => {
-    const checkInitialAuthStatus = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error checking initial session:', error);
-          setIsUserLoggedIn(false);
-          return;
-        }
-        
-        setIsUserLoggedIn(!!data.session);
-      } catch (error) {
-        console.error('Error in initial auth check:', error);
-        setIsUserLoggedIn(false);
-      }
-    };
-    
-    checkInitialAuthStatus();
-    
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsUserLoggedIn(!!session);
-    });
-    
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-  
-  const handleSubscribe = async (interval: 'monthly' | 'yearly') => {
-    try {
-      setIsCheckingAuth(true);
-      
-      if (isUserLoggedIn !== null) {
-        if (isUserLoggedIn) {
-          navigate("/subscription", { state: { selectedInterval: interval } });
-        } else {
-          toast.info("Please sign in to subscribe");
-          navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
-        }
-        return;
-      }
-      
-      const { data, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("Authentication error:", error);
-        toast.error("Failed to check authentication status. Please try again.");
-        return;
-      }
-      
-      console.log("Session check result:", data.session ? "User is logged in" : "User is not logged in");
-      
-      if (data.session) {
-        console.log("Redirecting to subscription page with interval:", interval);
-        navigate("/subscription", { state: { selectedInterval: interval } });
-      } else {
-        console.log("Redirecting to auth page with return path to subscription");
-        toast.info("Please sign in to subscribe");
-        navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
-      }
-    } catch (error: any) {
-      console.error('Error checking session:', error);
-      toast.error("Failed to check authentication status. Please try again.");
-    } finally {
-      setIsCheckingAuth(false);
-    }
-  };
-  
   return (
     <div className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -90,6 +20,7 @@ export const PricingSection = () => {
           </p>
         </div>
         <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-8 lg:grid-cols-2">
+          {/* Monthly Plan */}
           <div className="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10">
             <div>
               <div className="flex items-center justify-between gap-x-4">
@@ -105,7 +36,7 @@ export const PricingSection = () => {
                 <span className="text-sm font-semibold leading-6 text-gray-600">/month</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
-                {features.map(feature => (
+                {features.map((feature) => (
                   <li key={feature} className="flex gap-x-3">
                     <Check className="h-6 w-5 flex-none text-primary" />
                     {feature}
@@ -113,20 +44,12 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button 
-              className="mt-8 bg-primary hover:bg-primary-700" 
-              onClick={() => handleSubscribe('monthly')}
-              disabled={isCheckingAuth}
-            >
-              {isCheckingAuth ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking...
-                </>
-              ) : 'Subscribe Monthly'}
+            <Button className="mt-8 bg-primary hover:bg-primary-700">
+              Subscribe Monthly
             </Button>
           </div>
 
+          {/* Yearly Plan */}
           <div className="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10">
             <div>
               <div className="flex items-center justify-between gap-x-4">
@@ -145,7 +68,7 @@ export const PricingSection = () => {
                 <span className="text-sm font-semibold leading-6 text-gray-600">/year</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
-                {features.map(feature => (
+                {features.map((feature) => (
                   <li key={feature} className="flex gap-x-3">
                     <Check className="h-6 w-5 flex-none text-primary" />
                     {feature}
@@ -153,17 +76,8 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button 
-              className="mt-8 bg-primary hover:bg-primary-700" 
-              onClick={() => handleSubscribe('yearly')}
-              disabled={isCheckingAuth}
-            >
-              {isCheckingAuth ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking...
-                </>
-              ) : 'Subscribe Yearly'}
+            <Button className="mt-8 bg-primary hover:bg-primary-700">
+              Subscribe Yearly
             </Button>
           </div>
         </div>

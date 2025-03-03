@@ -2,56 +2,35 @@
 project_id = "wxmxtdsoogozosaautvo"
 
 [api]
+enabled = true
 port = 54321
 schemas = ["public", "storage", "graphql_public"]
-extra_search_path = ["public", "extensions"]
-max_rows = 1000
 
 [db]
 port = 54322
-shadow_port = 54320
-major_version = 15
 
-[db.pooler]
-port = 54329
-pool_mode = "transaction"
-default_pool_size = 20
-max_client_conn = 100
+[studio]
+enabled = true
+port = 54323
 
-[realtime]
-webhook_relay_port = 54323
-webhook_relay_server_port = 54324
-
-[storage]
-file_size_limit = "50MiB"
+[inbucket]
+enabled = true
+port = 54324
 
 [auth]
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
-jwt_expiry = 3600
-enable_refresh_token_rotation = true
-refresh_token_reuse_interval = 10
-enable_signup = true
-
-[auth.email]
-enable_signup = true
-double_confirm_changes = true
-enable_confirmations = false
-
-[auth.external.github]
-enabled = false
-
-[auth.external.google]
 enabled = true
 
-[analytics]
-enabled = false
-port = 54327
-vector_port = 54328
-backend = "postgres"
+[storage]
+enabled = true
 
-[experimental]
-trusted_proxies = ["0.0.0.0/0"]
+[realtime]
+enabled = true
 
-[functions]
-serve = {}
+[functions.process-job-match]
+verify_jwt = false
+
+[functions.process-resume]
+verify_jwt = false
+
+[functions.process-learning-courses]
+verify_jwt = false
