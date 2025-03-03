@@ -30,5 +30,5 @@ refresh_token_reuse_interval = 10
 [realtime]
 enabled = true
 
-[edge_functions]
+[functions]
 serve = true
