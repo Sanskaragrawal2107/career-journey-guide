@@ -32,7 +32,7 @@ export const Subscription = () => {
           .select("*");
 
         if (error) throw error;
-        setPlans(data);
+        setPlans(data || []);
       } catch (error) {
         console.error("Error fetching plans:", error);
         toast({
@@ -52,13 +52,14 @@ export const Subscription = () => {
     try {
       setProcessingPayment(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
         toast({
           title: "Error",
           description: "You need to be logged in to subscribe",
           variant: "destructive",
         });
+        navigate("/auth");
         return;
       }
 
@@ -80,45 +81,60 @@ export const Subscription = () => {
       
       // Initialize Razorpay payment
       await initiateRazorpayPayment({
-        key: "rzp_test_YourTestKey", // Replace with your Razorpay key
+        key: "rzp_live_47mpRvV2Yh9XLZ", // Your Razorpay key
         amount: amount,
-        currency: "USD",
+        currency: "INR",
         name: "CareerSarthi",
         description: `${plan.name} Subscription`,
         order_id: orderId,
         handler: async (response) => {
           // Verify payment on backend
-          const verifyResponse = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
-              plan_id: planId,
-              interval: interval
-            }),
-          });
-
-          if (verifyResponse.ok) {
-            toast({
-              title: "Success",
-              description: "Your subscription has been activated",
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData.session?.access_token;
+            
+            const verifyResponse = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                plan_id: planId,
+                interval: interval
+              }),
             });
-            navigate("/dashboard");
-          } else {
+
+            if (verifyResponse.ok) {
+              toast({
+                title: "Success",
+                description: "Your subscription has been activated",
+              });
+              navigate("/dashboard");
+            } else {
+              const errorData = await verifyResponse.json();
+              toast({
+                title: "Error",
+                description: errorData.error || "Payment verification failed",
+                variant: "destructive",
+              });
+            }
+          } catch (error) {
+            console.error("Verification error:", error);
             toast({
               title: "Error",
               description: "Payment verification failed",
               variant: "destructive",
             });
+          } finally {
+            setProcessingPayment(false);
           }
-          setProcessingPayment(false);
         },
         prefill: {
-          email: user.email,
+          email: data.user.email,
         },
         theme: {
           color: "#6366F1",
@@ -166,12 +182,12 @@ export const Subscription = () => {
                 <div className="mb-6">
                   {plan.name.includes("Monthly") ? (
                     <div className="flex items-baseline">
-                      <span className="text-4xl font-bold">${plan.price_monthly}</span>
+                      <span className="text-4xl font-bold">₹ {plan.price_monthly}</span>
                       <span className="text-sm text-gray-600 ml-1">/month</span>
                     </div>
                   ) : (
                     <div className="flex items-baseline">
-                      <span className="text-4xl font-bold">${plan.price_yearly}</span>
+                      <span className="text-4xl font-bold">₹ {plan.price_yearly}</span>
                       <span className="text-sm text-gray-600 ml-1">/year</span>
                       <span className="ml-2 rounded-full bg-primary-50 px-2 py-1 text-xs font-semibold text-primary">
                         Save 18%

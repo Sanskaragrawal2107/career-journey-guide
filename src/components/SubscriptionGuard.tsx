@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
@@ -11,29 +12,38 @@ interface SubscriptionGuardProps {
 export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkSubscription = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
           setHasSubscription(false);
+          setLoading(false);
           return;
         }
 
-        const { data, error } = await supabase.rpc('has_active_subscription', {
-          user_uuid: user.id
+        const response = await fetch('/api/has-active-subscription', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${sessionData.session.access_token}`
+          }
         });
 
-        if (error) {
-          console.error("Error checking subscription:", error);
-          setHasSubscription(false);
-          return;
+        if (!response.ok) {
+          throw new Error('Failed to check subscription status');
         }
 
-        setHasSubscription(data);
+        const data = await response.json();
+        setHasSubscription(data.hasActiveSubscription);
       } catch (error) {
         console.error("Error checking subscription status:", error);
+        toast({
+          title: "Error",
+          description: "Failed to verify subscription status",
+          variant: "destructive",
+        });
         setHasSubscription(false);
       } finally {
         setLoading(false);
@@ -41,7 +51,7 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
     };
 
     checkSubscription();
-  }, []);
+  }, [toast]);
 
   if (loading) {
     return (
@@ -52,6 +62,10 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   }
 
   if (!hasSubscription) {
+    toast({
+      title: "Subscription Required",
+      description: "You need an active subscription to access this feature",
+    });
     return <Navigate to="/subscription" />;
   }
 

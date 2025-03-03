@@ -56,12 +56,14 @@ export const createRazorpayOrder = async (planId: string, interval: 'monthly' | 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
       },
       body: JSON.stringify({ planId, interval }),
     });
     
     if (!response.ok) {
-      throw new Error('Failed to create order');
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create order');
     }
     
     const data = await response.json();
