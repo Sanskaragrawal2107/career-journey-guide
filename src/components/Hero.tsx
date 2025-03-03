@@ -1,38 +1,72 @@
-
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Coffee, Briefcase, Sparkles, Rocket, Star, ChartBar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 export const Hero = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkInitialAuthStatus = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error checking initial session:', error);
+          setIsUserLoggedIn(false);
+          return;
+        }
+        
+        setIsUserLoggedIn(!!data.session);
+      } catch (error) {
+        console.error('Error in initial auth check:', error);
+        setIsUserLoggedIn(false);
+      }
+    };
+    
+    checkInitialAuthStatus();
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsUserLoggedIn(!!session);
+    });
+    
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleStartJourney = async () => {
     try {
       setIsCheckingAuth(true);
+      
+      if (isUserLoggedIn !== null) {
+        if (isUserLoggedIn) {
+          navigate("/dashboard");
+        } else {
+          navigate("/auth", { state: { returnTo: "/dashboard" } });
+        }
+        return;
+      }
+      
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
-        throw error;
+        console.error('Error checking session:', error);
+        toast.error("Error checking authentication status. Please try again.");
+        return;
       }
       
       if (data.session) {
-        // If user is logged in, redirect to dashboard
         navigate("/dashboard");
       } else {
-        // Redirect to auth page
-        navigate("/auth");
+        navigate("/auth", { state: { returnTo: "/dashboard" } });
       }
     } catch (error) {
       console.error('Error checking session:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check authentication status. Please try again."
-      });
+      toast.error("Failed to check authentication status. Please try again.");
     } finally {
       setIsCheckingAuth(false);
     }

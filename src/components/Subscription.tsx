@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Check, Loader2 } from "lucide-react";
 import { createRazorpayOrder, initiateRazorpayPayment, loadRazorpayScript } from "@/integrations/razorpay/client";
 import { useToast } from "@/components/ui/use-toast";
+import { toast as sonnerToast } from "sonner";
 
 interface SubscriptionPlan {
   id: string;
@@ -36,21 +37,39 @@ export const Subscription = () => {
   // Check authentication status when component mounts
   useEffect(() => {
     const checkAuth = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Error checking auth:", error);
+      try {
+        setIsAuthenticated(null); // Reset to loading state
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error checking auth:", error);
+          setIsAuthenticated(false);
+          return;
+        }
+        
+        const isLoggedIn = !!data.session;
+        setIsAuthenticated(isLoggedIn);
+        
+        if (!isLoggedIn) {
+          console.log("User not authenticated, redirecting to auth page");
+          toast({
+            title: "Login Required",
+            description: "Please sign in to access subscription plans"
+          });
+          
+          // Use a small delay to ensure the state update completes before navigation
+          setTimeout(() => {
+            navigate("/auth", { 
+              state: { 
+                returnTo: "/subscription", 
+                selectedInterval: currentPlanView 
+              } 
+            });
+          }, 100);
+        }
+      } catch (error) {
+        console.error('Error in checkAuth:', error);
         setIsAuthenticated(false);
-        return;
-      }
-      setIsAuthenticated(!!data.session);
-      
-      if (!data.session) {
-        console.log("User not authenticated, redirecting to auth page");
-        toast({
-          title: "Login Required",
-          description: "Please sign in to access subscription plans"
-        });
-        navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: currentPlanView } });
       }
     };
     
@@ -60,19 +79,26 @@ export const Subscription = () => {
   // Load Razorpay script on component mount
   useEffect(() => {
     const loadScript = async () => {
-      const isLoaded = await loadRazorpayScript();
-      setRazorpayLoaded(isLoaded);
-      if (!isLoaded) {
-        toast({
-          title: "Warning",
-          description: "Failed to load payment system. Please refresh the page.",
-          variant: "destructive",
-        });
+      try {
+        const isLoaded = await loadRazorpayScript();
+        setRazorpayLoaded(isLoaded);
+        if (!isLoaded) {
+          toast({
+            title: "Warning",
+            description: "Failed to load payment system. Please refresh the page.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error loading Razorpay script:", error);
+        setRazorpayLoaded(false);
       }
     };
     
-    loadScript();
-  }, [toast]);
+    if (isAuthenticated) {
+      loadScript();
+    }
+  }, [toast, isAuthenticated]);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -89,7 +115,7 @@ export const Subscription = () => {
           // Fallback plans if none found in database
           setPlans([
             {
-              id: "basic-monthly",
+              id: "basic-plan",
               name: "Basic Plan",
               description: "Perfect for professionals starting their career journey",
               price_monthly: 9,
@@ -161,9 +187,13 @@ export const Subscription = () => {
       console.log("Creating Razorpay order for plan:", planId, "interval:", interval);
       
       try {
-        // Get order ID from our backend (or mock)
+        // Get order ID from our backend
         const orderId = await createRazorpayOrder(planId, interval);
         console.log("Razorpay order created:", orderId);
+        
+        if (!orderId) {
+          throw new Error("Failed to create order");
+        }
         
         // Calculate amount based on interval (amount in paise/cents)
         const amount = interval === 'monthly' ? plan.price_monthly * 100 : plan.price_yearly * 100;
@@ -180,13 +210,31 @@ export const Subscription = () => {
           order_id: orderId,
           handler: async (response) => {
             console.log("Payment successful:", response);
-            // On success, show toast and redirect to dashboard
-            toast({
-              title: "Success",
-              description: "Your subscription has been activated",
-            });
-            // In a real implementation, we would verify the payment on the backend
-            navigate("/dashboard");
+            
+            try {
+              // Verify payment with our backend
+              const { data, error } = await supabase.functions.invoke('verify-payment', {
+                body: { 
+                  paymentId: response.razorpay_payment_id,
+                  orderId: response.razorpay_order_id,
+                  signature: response.razorpay_signature,
+                  planId,
+                  interval
+                },
+              });
+              
+              if (error) {
+                console.error("Payment verification error:", error);
+                sonnerToast.error("Payment verification failed. Please contact support.");
+                return;
+              }
+              
+              sonnerToast.success("Your subscription has been activated!");
+              navigate("/dashboard");
+            } catch (verifyError) {
+              console.error("Error during payment verification:", verifyError);
+              sonnerToast.error("Payment verification failed. Please contact support.");
+            }
           },
           prefill: {
             email: data.user.email,
@@ -194,6 +242,12 @@ export const Subscription = () => {
           theme: {
             color: "#6366F1",
           },
+          modal: {
+            ondismiss: () => {
+              setProcessingPayment(false);
+              console.log("Payment modal dismissed by user");
+            }
+          }
         });
       } catch (error) {
         console.error("Payment initiation error:", error);

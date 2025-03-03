@@ -1,9 +1,9 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
@@ -12,12 +12,13 @@ interface SubscriptionGuardProps {
 export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
   const navigate = useNavigate();
+  const isMounted = useRef(true);
 
   useEffect(() => {
-    let isMounted = true;
-
+    // Set up the mounted ref
+    isMounted.current = true;
+    
     const checkSubscription = async () => {
       try {
         setLoading(true);
@@ -31,7 +32,7 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
         
         if (!sessionData.session) {
           console.log("No active session found");
-          if (isMounted) {
+          if (isMounted.current) {
             setHasSubscription(false);
             setLoading(false);
           }
@@ -55,21 +56,17 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
         }
         
         console.log("Subscription check result:", subscriptionData ? "Active subscription found" : "No active subscription");
-        if (isMounted) {
+        if (isMounted.current) {
           setHasSubscription(!!subscriptionData);
         }
       } catch (error) {
         console.error("Error checking subscription status:", error);
-        if (isMounted) {
-          toast({
-            title: "Error",
-            description: "Failed to verify subscription status",
-            variant: "destructive",
-          });
+        if (isMounted.current) {
+          toast.error("Failed to verify subscription status");
           setHasSubscription(false);
         }
       } finally {
-        if (isMounted) {
+        if (isMounted.current) {
           setLoading(false);
         }
       }
@@ -77,10 +74,11 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
 
     checkSubscription();
 
+    // Cleanup function to prevent state updates if the component unmounts
     return () => {
-      isMounted = false;
+      isMounted.current = false;
     };
-  }, [toast]);
+  }, []);
 
   if (loading) {
     return (
@@ -92,10 +90,7 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
 
   if (!hasSubscription) {
     console.log("No active subscription, redirecting to subscription page");
-    toast({
-      title: "Subscription Required",
-      description: "You need an active subscription to access this feature",
-    });
+    toast.warning("You need an active subscription to access this feature");
     return <Navigate to="/subscription" />;
   }
 

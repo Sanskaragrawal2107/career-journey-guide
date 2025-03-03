@@ -32,15 +32,19 @@ const AuthCallback = () => {
         
         if (data?.session) {
           toast.success("Successfully signed in!");
-          if (returnTo) {
-            console.log("Redirecting to:", returnTo, "with interval:", selectedInterval);
-            // Make sure we preserve the state when navigating
-            navigate(returnTo, { 
-              state: selectedInterval ? { selectedInterval } : undefined 
-            });
-          } else {
-            navigate('/dashboard');
-          }
+          
+          // Small timeout to ensure session is established before redirect
+          setTimeout(() => {
+            if (returnTo) {
+              console.log("Redirecting to:", returnTo, "with interval:", selectedInterval);
+              // Make sure we preserve the state when navigating
+              navigate(returnTo, { 
+                state: selectedInterval ? { selectedInterval } : undefined 
+              });
+            } else {
+              navigate('/dashboard');
+            }
+          }, 300);
         } else {
           setError("Failed to retrieve session");
           toast.error("Authentication failed. Please try again.");

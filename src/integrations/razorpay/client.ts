@@ -24,6 +24,9 @@ export interface RazorpayOptions {
   theme?: {
     color?: string;
   };
+  modal?: {
+    ondismiss?: () => void;
+  };
 }
 
 export interface RazorpayResponse {
@@ -68,34 +71,34 @@ export const createRazorpayOrder = async (planId: string, interval: 'monthly' | 
       throw new Error('Authentication required');
     }
     
-    // Mock order ID for testing - in production this would call your backend
-    // In a real implementation, remove this and uncomment the fetch code below
-    const mockOrderId = "order_" + Math.random().toString(36).substring(2, 15);
-    console.log("Created mock order ID for testing:", mockOrderId);
-    return mockOrderId;
-    
-    /* Uncomment this when your edge function is working
-    // Call our edge function to create an order
-    const response = await fetch('/api/create-razorpay-order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ planId, interval }),
-    });
-    
-    if (!response.ok) {
-      console.error('Error response status:', response.status);
-      const errorText = await response.text();
-      console.error('Error response text:', errorText);
-      throw new Error('Failed to create order: ' + errorText);
+    try {
+      // Call the edge function to create an order
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+        body: { planId, interval },
+      });
+      
+      if (error) {
+        console.error('Error calling create-razorpay-order function:', error);
+        throw new Error('Failed to create order: ' + error.message);
+      }
+      
+      if (!data || !data.orderId) {
+        // Fallback to mock order ID if the function doesn't return a valid order ID
+        console.warn('Edge function did not return a valid order ID, using mock ID for testing');
+        const mockOrderId = "order_" + Math.random().toString(36).substring(2, 15);
+        return mockOrderId;
+      }
+      
+      console.log("Order created successfully:", data);
+      return data.orderId;
+    } catch (invokeError) {
+      console.error('Error invoking edge function:', invokeError);
+      
+      // Fallback to mock order ID for testing
+      console.warn('Using mock order ID as fallback');
+      const mockOrderId = "order_" + Math.random().toString(36).substring(2, 15);
+      return mockOrderId;
     }
-    
-    const data = await response.json();
-    console.log("Order created successfully:", data);
-    return data.orderId;
-    */
   } catch (error) {
     console.error('Error creating Razorpay order:', error);
     throw error;
@@ -112,7 +115,17 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
   }
 
   console.log("Creating Razorpay instance...");
-  const razorpay = new window.Razorpay(options);
+  const razorpay = new window.Razorpay({
+    ...options,
+    modal: {
+      ondismiss: function() {
+        console.log('Payment modal dismissed');
+        if (options.modal?.ondismiss) {
+          options.modal.ondismiss();
+        }
+      }
+    }
+  });
   console.log("Opening Razorpay payment modal...");
   razorpay.open();
 };

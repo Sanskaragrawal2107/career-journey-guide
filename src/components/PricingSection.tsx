@@ -1,49 +1,80 @@
-
 import { Button } from "@/components/ui/button";
 import { Check, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
 const features = ["Resume Analysis", "Skill Gap Detection", "Career Path Suggestions", "Learning Resources", "Progress Tracking"];
 
 export const PricingSection = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const checkInitialAuthStatus = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error checking initial session:', error);
+          setIsUserLoggedIn(false);
+          return;
+        }
+        
+        setIsUserLoggedIn(!!data.session);
+      } catch (error) {
+        console.error('Error in initial auth check:', error);
+        setIsUserLoggedIn(false);
+      }
+    };
+    
+    checkInitialAuthStatus();
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsUserLoggedIn(!!session);
+    });
+    
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
   
   const handleSubscribe = async (interval: 'monthly' | 'yearly') => {
     try {
       setIsCheckingAuth(true);
+      
+      if (isUserLoggedIn !== null) {
+        if (isUserLoggedIn) {
+          navigate("/subscription", { state: { selectedInterval: interval } });
+        } else {
+          toast.info("Please sign in to subscribe");
+          navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
+        }
+        return;
+      }
+      
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
         console.error("Authentication error:", error);
-        throw error;
+        toast.error("Failed to check authentication status. Please try again.");
+        return;
       }
       
       console.log("Session check result:", data.session ? "User is logged in" : "User is not logged in");
       
       if (data.session) {
-        // If user is logged in, redirect directly to subscription page
         console.log("Redirecting to subscription page with interval:", interval);
         navigate("/subscription", { state: { selectedInterval: interval } });
       } else {
-        // Redirect to auth page with return URL
         console.log("Redirecting to auth page with return path to subscription");
-        toast({
-          title: "Login Required",
-          description: "Please sign in to subscribe"
-        });
+        toast.info("Please sign in to subscribe");
         navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
       }
     } catch (error: any) {
       console.error('Error checking session:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check authentication status. Please try again."
-      });
+      toast.error("Failed to check authentication status. Please try again.");
     } finally {
       setIsCheckingAuth(false);
     }
@@ -59,7 +90,6 @@ export const PricingSection = () => {
           </p>
         </div>
         <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* Monthly Plan */}
           <div className="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10">
             <div>
               <div className="flex items-center justify-between gap-x-4">
@@ -97,7 +127,6 @@ export const PricingSection = () => {
             </Button>
           </div>
 
-          {/* Yearly Plan */}
           <div className="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10">
             <div>
               <div className="flex items-center justify-between gap-x-4">
