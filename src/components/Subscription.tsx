@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Loader2 } from "lucide-react";
-import { createRazorpayOrder, initiateRazorpayPayment } from "@/integrations/razorpay/client";
+import { createRazorpayOrder, initiateRazorpayPayment, loadRazorpayScript } from "@/integrations/razorpay/client";
 import { useToast } from "@/components/ui/use-toast";
 
 interface SubscriptionPlan {
@@ -25,13 +25,45 @@ export const Subscription = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedInterval } = (location.state as LocationState) || {};
   const [currentPlanView, setCurrentPlanView] = useState<'monthly' | 'yearly'>(selectedInterval || 'monthly');
 
+  // Load Razorpay script on component mount
   useEffect(() => {
+    const loadScript = async () => {
+      const isLoaded = await loadRazorpayScript();
+      setRazorpayLoaded(isLoaded);
+      if (!isLoaded) {
+        toast({
+          title: "Warning",
+          description: "Failed to load payment system. Please refresh the page.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    loadScript();
+  }, [toast]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        toast({
+          title: "Login Required",
+          description: "Please sign in to access subscription plans"
+        });
+        navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: currentPlanView } });
+        return;
+      }
+    };
+    
+    checkAuth();
+
     const fetchPlans = async () => {
       try {
         const { data, error } = await supabase
@@ -39,7 +71,24 @@ export const Subscription = () => {
           .select("*");
 
         if (error) throw error;
-        setPlans(data || []);
+        
+        if (!data || data.length === 0) {
+          console.log("No subscription plans found in database. Using fallback plans.");
+          // Fallback plans if none found in database
+          setPlans([
+            {
+              id: "basic-monthly",
+              name: "Basic Plan",
+              description: "Perfect for professionals starting their career journey",
+              price_monthly: 9,
+              price_yearly: 89,
+              features: ["Resume Analysis", "Skill Gap Detection", "Career Path Suggestions", "Learning Resources", "Progress Tracking"]
+            }
+          ]);
+        } else {
+          console.log("Subscription plans loaded:", data);
+          setPlans(data);
+        }
       } catch (error) {
         console.error("Error fetching plans:", error);
         toast({
@@ -53,7 +102,7 @@ export const Subscription = () => {
     };
 
     fetchPlans();
-  }, [toast]);
+  }, [toast, navigate, currentPlanView]);
 
   const handleSubscription = async (planId: string, interval: 'monthly' | 'yearly') => {
     try {
@@ -66,7 +115,7 @@ export const Subscription = () => {
           description: "You need to be logged in to subscribe",
           variant: "destructive",
         });
-        navigate("/auth");
+        navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
         return;
       }
 
@@ -80,11 +129,29 @@ export const Subscription = () => {
         return;
       }
 
+      if (!razorpayLoaded) {
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded) {
+          toast({
+            title: "Error",
+            description: "Failed to load payment system. Please refresh the page.",
+            variant: "destructive",
+          });
+          return;
+        }
+        setRazorpayLoaded(true);
+      }
+
+      console.log("Creating Razorpay order for plan:", planId, "interval:", interval);
+      
       // Get order ID from our backend
       const orderId = await createRazorpayOrder(planId, interval);
+      console.log("Razorpay order created:", orderId);
       
       // Calculate amount based on interval (amount in paise/cents)
       const amount = interval === 'monthly' ? plan.price_monthly * 100 : plan.price_yearly * 100;
+      
+      console.log("Initializing Razorpay payment UI with amount:", amount);
       
       // Initialize Razorpay payment
       await initiateRazorpayPayment({
@@ -92,13 +159,16 @@ export const Subscription = () => {
         amount: amount,
         currency: "USD",
         name: "CareerSarthi",
-        description: `${plan.name} Subscription`,
+        description: `${plan.name} Subscription - ${interval}`,
         order_id: orderId,
         handler: async (response) => {
+          console.log("Payment successful:", response);
           // Verify payment on backend
           try {
             const { data: sessionData } = await supabase.auth.getSession();
             const token = sessionData.session?.access_token;
+            
+            console.log("Verifying payment with token:", token ? "Available" : "Not available");
             
             const verifyResponse = await fetch('/api/verify-payment', {
               method: 'POST',
@@ -154,6 +224,7 @@ export const Subscription = () => {
         description: "Failed to process payment. Please try again.",
         variant: "destructive",
       });
+    } finally {
       setProcessingPayment(false);
     }
   };

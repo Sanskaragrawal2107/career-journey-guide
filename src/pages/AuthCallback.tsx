@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,20 +14,13 @@ const AuthCallback = () => {
       try {
         setLoading(true);
         
-        // Get the hash fragment from the URL
-        const hashFragment = window.location.hash;
+        // Get search params from the URL
         const searchParams = new URLSearchParams(window.location.search);
         const returnTo = searchParams.get('returnTo');
         const selectedInterval = searchParams.get('selectedInterval') as 'monthly' | 'yearly' | null;
         
-        // If there's no hash fragment, something went wrong
-        if (!hashFragment || !hashFragment.includes('access_token')) {
-          setError("Authentication failed. No valid token received.");
-          toast.error("Authentication failed. Please try again.");
-          setTimeout(() => navigate('/auth'), 3000);
-          return;
-        }
-
+        console.log("Auth callback params:", { returnTo, selectedInterval });
+        
         // Process the auth callback
         const { data, error } = await supabase.auth.getSession();
         
@@ -39,6 +31,7 @@ const AuthCallback = () => {
         if (data?.session) {
           toast.success("Successfully signed in!");
           if (returnTo) {
+            console.log("Redirecting to:", returnTo, "with interval:", selectedInterval);
             navigate(returnTo, { state: { selectedInterval } });
           } else {
             navigate('/dashboard');

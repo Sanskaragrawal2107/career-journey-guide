@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -13,6 +13,7 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkSubscription = async () => {
@@ -21,13 +22,19 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
         
         // Check if user is logged in
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          throw sessionError;
+        }
         
         if (!sessionData.session) {
+          console.log("No active session found");
           setHasSubscription(false);
           setLoading(false);
           return;
         }
+
+        console.log("User is logged in, checking subscription...");
 
         // Check for active subscription in database
         const { data: subscriptionData, error: subscriptionError } = await supabase
@@ -38,8 +45,12 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
           .gte('current_period_end', new Date().toISOString())
           .maybeSingle();
 
-        if (subscriptionError) throw subscriptionError;
+        if (subscriptionError) {
+          console.error("Subscription check error:", subscriptionError);
+          throw subscriptionError;
+        }
         
+        console.log("Subscription check result:", subscriptionData ? "Active subscription found" : "No active subscription");
         setHasSubscription(!!subscriptionData);
       } catch (error) {
         console.error("Error checking subscription status:", error);
@@ -66,6 +77,7 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   }
 
   if (!hasSubscription) {
+    console.log("No active subscription, redirecting to subscription page");
     toast({
       title: "Subscription Required",
       description: "You need an active subscription to access this feature",
@@ -73,5 +85,6 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
     return <Navigate to="/subscription" />;
   }
 
+  console.log("Active subscription verified, rendering protected content");
   return <>{children}</>;
 };

@@ -18,6 +18,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function verifySignature(orderId: string, paymentId: string, signature: string) {
+  const hmac = createHmac('sha256', RAZORPAY_KEY_SECRET);
+  hmac.update(orderId + "|" + paymentId);
+  const generatedSignature = hmac.digest('hex');
+  return generatedSignature === signature;
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -35,19 +42,19 @@ serve(async (req) => {
 
     // Get request body
     const { 
-      razorpay_payment_id, 
       razorpay_order_id, 
+      razorpay_payment_id, 
       razorpay_signature,
       plan_id,
       interval
     } = await req.json();
 
-    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature || !plan_id || !interval) {
-      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    console.log(`Received payment verification for:`, {
+      order_id: razorpay_order_id,
+      payment_id: razorpay_payment_id,
+      plan_id,
+      interval
+    });
 
     // Authenticate the user
     const authHeader = req.headers.get('Authorization');
@@ -70,101 +77,85 @@ serve(async (req) => {
       });
     }
 
-    // Verify Razorpay signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = createHmac('sha256', RAZORPAY_KEY_SECRET)
-      .update(body)
-      .digest('hex');
+    console.log(`Authenticated user: ${user.id}`);
 
-    const isAuthentic = expectedSignature === razorpay_signature;
-
-    if (!isAuthentic) {
+    // Verify signature
+    const isValid = verifySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    
+    if (!isValid) {
+      console.error('Invalid signature');
       return new Response(JSON.stringify({ error: 'Invalid payment signature' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Fetch payment details from Razorpay (optional but recommended for extra verification)
+    console.log('Payment signature verified');
+
+    // Fetch the order details from Razorpay to confirm payment amount, currency, etc.
+    const razorpayOrderUrl = `https://api.razorpay.com/v1/orders/${razorpay_order_id}`;
     const credentials = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
-    const paymentResponse = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
+    
+    const orderResponse = await fetch(razorpayOrderUrl, {
+      method: 'GET',
       headers: {
         'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
       },
     });
 
-    if (!paymentResponse.ok) {
-      console.error('Failed to fetch payment details from Razorpay');
-      return new Response(JSON.stringify({ error: 'Failed to verify payment status' }), {
+    if (!orderResponse.ok) {
+      console.error('Failed to fetch order details from Razorpay');
+      return new Response(JSON.stringify({ error: 'Failed to verify order details' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const paymentData = await paymentResponse.json();
-    
-    // Ensure payment is authorized or captured
-    if (paymentData.status !== 'authorized' && paymentData.status !== 'captured') {
-      return new Response(JSON.stringify({ error: 'Payment is not authorized' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const orderData = await orderResponse.json();
+    console.log('Razorpay order details:', orderData);
 
-    // Fetch plan details
-    const { data: planData, error: planError } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('id', plan_id)
-      .single();
-
-    if (planError || !planData) {
-      console.error('Error fetching plan:', planError);
-      return new Response(JSON.stringify({ error: 'Invalid plan' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Calculate subscription duration
-    const startDate = new Date();
-    const endDate = new Date(startDate);
+    // Calculate subscription end date
+    const now = new Date();
+    const periodEnd = new Date(now);
     
     if (interval === 'monthly') {
-      endDate.setMonth(endDate.getMonth() + 1);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
     } else if (interval === 'yearly') {
-      endDate.setFullYear(endDate.getFullYear() + 1);
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     }
 
-    // Create subscription in database
-    const { error: insertError } = await supabase
+    // Store subscription in database
+    const { data: subscription, error: subscriptionError } = await supabase
       .from('user_subscriptions')
       .insert({
         user_id: user.id,
         plan_id: plan_id,
         status: 'active',
-        current_period_start: startDate.toISOString(),
-        current_period_end: endDate.toISOString(),
-        payment_method: 'razorpay',
-        payment_id: razorpay_payment_id
-      });
+        payment_provider: 'razorpay',
+        interval: interval,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        payment_id: razorpay_payment_id,
+        order_id: razorpay_order_id,
+      })
+      .select()
+      .single();
 
-    if (insertError) {
-      console.error('Error saving subscription:', insertError);
-      return new Response(JSON.stringify({ error: 'Failed to save subscription' }), {
+    if (subscriptionError) {
+      console.error('Failed to store subscription:', subscriptionError);
+      return new Response(JSON.stringify({ error: 'Failed to activate subscription' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('Subscription activated successfully:', subscription);
+    
     return new Response(JSON.stringify({ 
       success: true,
-      subscription: {
-        plan: planData.name,
-        interval: interval,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString()
-      }
+      message: 'Payment verified and subscription activated',
+      subscription
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

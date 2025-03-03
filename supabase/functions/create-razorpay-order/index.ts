@@ -34,6 +34,7 @@ serve(async (req) => {
 
     // Get request body
     const { planId, interval } = await req.json();
+    console.log(`Received order creation request for plan: ${planId}, interval: ${interval}`);
 
     // Authenticate the user
     const authHeader = req.headers.get('Authorization');
@@ -56,6 +57,8 @@ serve(async (req) => {
       });
     }
 
+    console.log(`Authenticated user: ${user.id}`);
+
     // Fetch plan details
     const { data: plans, error: planError } = await supabase
       .from('subscription_plans')
@@ -64,9 +67,48 @@ serve(async (req) => {
       .single();
 
     if (planError || !plans) {
-      console.error('Error fetching plan:', planError);
-      return new Response(JSON.stringify({ error: 'Invalid plan' }), {
-        status: 400,
+      console.log('No plans found in database, using fallback price');
+      // Use fallback price if plan not found in database
+      const amount = interval === 'monthly' ? 900 : 8900; // Default: $9 monthly or $89 yearly
+      
+      console.log(`Creating order for user ${user.id}, plan ${planId}, amount ${amount}`);
+
+      // Create Razorpay order
+      const razorpayUrl = 'https://api.razorpay.com/v1/orders';
+      const credentials = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
+      
+      const orderResponse = await fetch(razorpayUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          currency: 'USD',
+          receipt: `order_${user.id}_${Date.now()}`,
+          notes: {
+            userId: user.id,
+            planId: planId,
+            interval: interval,
+          },
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        const errorText = await orderResponse.text();
+        console.error('Razorpay order creation failed:', errorText);
+        return new Response(JSON.stringify({ error: 'Failed to create Razorpay order' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const orderData = await orderResponse.json();
+      console.log('Order created successfully:', orderData.id);
+      
+      return new Response(JSON.stringify({ orderId: orderData.id }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -108,6 +150,7 @@ serve(async (req) => {
     }
 
     const orderData = await orderResponse.json();
+    console.log('Order created successfully:', orderData.id);
     
     return new Response(JSON.stringify({ orderId: orderData.id }), {
       status: 200,

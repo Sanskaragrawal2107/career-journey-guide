@@ -26,6 +26,8 @@ const Auth = () => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
+        console.log("User is already logged in, redirecting to:", returnTo || "/dashboard");
+        console.log("Selected interval:", selectedInterval);
         if (returnTo) {
           navigate(returnTo, { state: { selectedInterval } });
         } else {
@@ -38,6 +40,8 @@ const Auth = () => {
   }, [navigate, returnTo, selectedInterval]);
 
   const handleSuccessfulAuth = () => {
+    console.log("Authentication successful, redirecting to:", returnTo || "/dashboard");
+    console.log("Selected interval:", selectedInterval);
     if (returnTo) {
       navigate(returnTo, { state: { selectedInterval } });
     } else {
@@ -89,6 +93,8 @@ const Auth = () => {
       if (selectedInterval) {
         redirectUrl.searchParams.append('selectedInterval', selectedInterval);
       }
+      
+      console.log("Google sign-in redirect URL:", redirectUrl.toString());
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
