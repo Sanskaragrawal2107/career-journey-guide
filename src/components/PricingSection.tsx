@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -19,21 +19,26 @@ export const PricingSection = () => {
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
+        console.error("Authentication error:", error);
         throw error;
       }
       
+      console.log("Session check result:", data.session ? "User is logged in" : "User is not logged in");
+      
       if (data.session) {
         // If user is logged in, redirect directly to subscription page
+        console.log("Redirecting to subscription page with interval:", interval);
         navigate("/subscription", { state: { selectedInterval: interval } });
       } else {
         // Redirect to auth page with return URL
+        console.log("Redirecting to auth page with return path to subscription");
         toast({
           title: "Login Required",
           description: "Please sign in to subscribe"
         });
         navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking session:', error);
       toast({
         title: "Error",
@@ -83,7 +88,12 @@ export const PricingSection = () => {
               onClick={() => handleSubscribe('monthly')}
               disabled={isCheckingAuth}
             >
-              {isCheckingAuth ? 'Checking...' : 'Subscribe Monthly'}
+              {isCheckingAuth ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking...
+                </>
+              ) : 'Subscribe Monthly'}
             </Button>
           </div>
 
@@ -119,7 +129,12 @@ export const PricingSection = () => {
               onClick={() => handleSubscribe('yearly')}
               disabled={isCheckingAuth}
             >
-              {isCheckingAuth ? 'Checking...' : 'Subscribe Yearly'}
+              {isCheckingAuth ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking...
+                </>
+              ) : 'Subscribe Yearly'}
             </Button>
           </div>
         </div>

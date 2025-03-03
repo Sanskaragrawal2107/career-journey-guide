@@ -1,7 +1,9 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -32,7 +34,10 @@ const AuthCallback = () => {
           toast.success("Successfully signed in!");
           if (returnTo) {
             console.log("Redirecting to:", returnTo, "with interval:", selectedInterval);
-            navigate(returnTo, { state: { selectedInterval } });
+            // Make sure we preserve the state when navigating
+            navigate(returnTo, { 
+              state: selectedInterval ? { selectedInterval } : undefined 
+            });
           } else {
             navigate('/dashboard');
           }
@@ -57,7 +62,7 @@ const AuthCallback = () => {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-gray-600">Completing authentication...</p>
       </div>
     );
@@ -75,7 +80,7 @@ const AuthCallback = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+      <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
       <p className="text-gray-600">Authentication successful! Redirecting...</p>
     </div>
   );

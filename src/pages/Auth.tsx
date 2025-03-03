@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface LocationState {
   returnTo?: string;
@@ -19,20 +20,35 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const { returnTo, selectedInterval } = (location.state as LocationState) || {};
 
   useEffect(() => {
+    console.log("Auth page loaded with state:", { returnTo, selectedInterval });
+    
     // Check if user is already logged in
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        console.log("User is already logged in, redirecting to:", returnTo || "/dashboard");
-        console.log("Selected interval:", selectedInterval);
-        if (returnTo) {
-          navigate(returnTo, { state: { selectedInterval } });
-        } else {
-          navigate("/dashboard");
+      setIsCheckingSession(true);
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Error checking session:", error);
+          return;
         }
+        
+        if (data.session) {
+          console.log("User is already logged in, redirecting to:", returnTo || "/dashboard");
+          console.log("Selected interval:", selectedInterval);
+          if (returnTo) {
+            navigate(returnTo, { state: { selectedInterval } });
+          } else {
+            navigate("/dashboard");
+          }
+        }
+      } catch (error) {
+        console.error("Error checking session:", error);
+      } finally {
+        setIsCheckingSession(false);
       }
     };
     
@@ -58,6 +74,7 @@ const Auth = () => {
         password,
       });
       if (error) throw error;
+      toast.success("Successfully signed in!");
       handleSuccessfulAuth();
     } catch (error: any) {
       toast.error(error.message);
@@ -108,12 +125,26 @@ const Auth = () => {
     }
   };
 
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Welcome to CareerSarthi</CardTitle>
           <CardDescription>Sign in to start your career journey</CardDescription>
+          {returnTo && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Sign in to continue to {returnTo.replace("/", "")}
+              {selectedInterval && ` (${selectedInterval} plan)`}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
@@ -138,7 +169,12 @@ const Auth = () => {
                   required
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign in with Email"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : "Sign in with Email"}
                 </Button>
               </form>
             </TabsContent>
@@ -159,7 +195,12 @@ const Auth = () => {
                   required
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Signing up..." : "Sign up with Email"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing up...
+                    </>
+                  ) : "Sign up with Email"}
                 </Button>
               </form>
             </TabsContent>

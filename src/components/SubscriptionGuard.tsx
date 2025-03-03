@@ -16,6 +16,8 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkSubscription = async () => {
       try {
         setLoading(true);
@@ -29,8 +31,10 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
         
         if (!sessionData.session) {
           console.log("No active session found");
-          setHasSubscription(false);
-          setLoading(false);
+          if (isMounted) {
+            setHasSubscription(false);
+            setLoading(false);
+          }
           return;
         }
 
@@ -51,21 +55,31 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
         }
         
         console.log("Subscription check result:", subscriptionData ? "Active subscription found" : "No active subscription");
-        setHasSubscription(!!subscriptionData);
+        if (isMounted) {
+          setHasSubscription(!!subscriptionData);
+        }
       } catch (error) {
         console.error("Error checking subscription status:", error);
-        toast({
-          title: "Error",
-          description: "Failed to verify subscription status",
-          variant: "destructive",
-        });
-        setHasSubscription(false);
+        if (isMounted) {
+          toast({
+            title: "Error",
+            description: "Failed to verify subscription status",
+            variant: "destructive",
+          });
+          setHasSubscription(false);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     checkSubscription();
+
+    return () => {
+      isMounted = false;
+    };
   }, [toast]);
 
   if (loading) {

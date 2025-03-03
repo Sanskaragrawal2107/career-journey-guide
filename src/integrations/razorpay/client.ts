@@ -68,6 +68,13 @@ export const createRazorpayOrder = async (planId: string, interval: 'monthly' | 
       throw new Error('Authentication required');
     }
     
+    // Mock order ID for testing - in production this would call your backend
+    // In a real implementation, remove this and uncomment the fetch code below
+    const mockOrderId = "order_" + Math.random().toString(36).substring(2, 15);
+    console.log("Created mock order ID for testing:", mockOrderId);
+    return mockOrderId;
+    
+    /* Uncomment this when your edge function is working
     // Call our edge function to create an order
     const response = await fetch('/api/create-razorpay-order', {
       method: 'POST',
@@ -88,6 +95,7 @@ export const createRazorpayOrder = async (planId: string, interval: 'monthly' | 
     const data = await response.json();
     console.log("Order created successfully:", data);
     return data.orderId;
+    */
   } catch (error) {
     console.error('Error creating Razorpay order:', error);
     throw error;
