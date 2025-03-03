@@ -31,4 +31,5 @@ refresh_token_reuse_interval = 10
 enabled = true
 
 [functions]
-serve = true
+[functions.serve]
+port = 54321
