@@ -11,22 +11,23 @@ export const PricingSection = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (interval: 'monthly' | 'yearly') => {
     try {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        navigate("/subscription");
+        // If user is logged in, redirect directly to subscription page
+        navigate("/subscription", { state: { selectedInterval: interval } });
       } else {
         // Redirect to auth page with return URL
         toast({
           title: "Login Required",
           description: "Please sign in to subscribe"
         });
-        navigate("/auth");
+        navigate("/auth", { state: { returnTo: "/subscription", selectedInterval: interval } });
       }
     } catch (error) {
       console.error('Error checking session:', error);
-      navigate("/auth");
+      navigate("/auth", { state: { returnTo: "/subscription" } });
     }
   };
   
@@ -52,7 +53,7 @@ export const PricingSection = () => {
                 Perfect for professionals starting their career journey
               </p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">₹ 750</span>
+                <span className="text-4xl font-bold tracking-tight text-gray-900">$9</span>
                 <span className="text-sm font-semibold leading-6 text-gray-600">/month</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
@@ -66,7 +67,7 @@ export const PricingSection = () => {
             </div>
             <Button 
               className="mt-8 bg-primary hover:bg-primary-700" 
-              onClick={handleSubscribe}
+              onClick={() => handleSubscribe('monthly')}
             >
               Subscribe Monthly
             </Button>
@@ -87,7 +88,7 @@ export const PricingSection = () => {
                 Best value for committed career growth
               </p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">₹ 7700</span>
+                <span className="text-4xl font-bold tracking-tight text-gray-900">$89</span>
                 <span className="text-sm font-semibold leading-6 text-gray-600">/year</span>
               </p>
               <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
@@ -101,7 +102,7 @@ export const PricingSection = () => {
             </div>
             <Button 
               className="mt-8 bg-primary hover:bg-primary-700" 
-              onClick={handleSubscribe}
+              onClick={() => handleSubscribe('yearly')}
             >
               Subscribe Yearly
             </Button>

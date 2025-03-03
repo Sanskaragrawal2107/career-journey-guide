@@ -17,26 +17,30 @@ export const SubscriptionGuard = ({ children }: SubscriptionGuardProps) => {
   useEffect(() => {
     const checkSubscription = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
+        setLoading(true);
+        
+        // Check if user is logged in
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        
         if (!sessionData.session) {
           setHasSubscription(false);
           setLoading(false);
           return;
         }
 
-        const response = await fetch('/api/has-active-subscription', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${sessionData.session.access_token}`
-          }
-        });
+        // Check for active subscription in database
+        const { data: subscriptionData, error: subscriptionError } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('user_id', sessionData.session.user.id)
+          .eq('status', 'active')
+          .gte('current_period_end', new Date().toISOString())
+          .maybeSingle();
 
-        if (!response.ok) {
-          throw new Error('Failed to check subscription status');
-        }
-
-        const data = await response.json();
-        setHasSubscription(data.hasActiveSubscription);
+        if (subscriptionError) throw subscriptionError;
+        
+        setHasSubscription(!!subscriptionData);
       } catch (error) {
         console.error("Error checking subscription status:", error);
         toast({

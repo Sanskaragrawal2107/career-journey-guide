@@ -8,7 +8,7 @@ declare global {
 
 export interface RazorpayOptions {
   key: string;
-  amount: number; // in paise (1 INR = 100 paise)
+  amount: number; // in paise (1 USD = 100 cents)
   currency: string;
   name: string;
   description?: string;
@@ -51,19 +51,28 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 
 export const createRazorpayOrder = async (planId: string, interval: 'monthly' | 'yearly'): Promise<string> => {
   try {
+    // Get auth token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+    
     // Call our edge function to create an order
     const response = await fetch('/api/create-razorpay-order', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ planId, interval }),
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create order');
+      console.error('Error response status:', response.status);
+      console.error('Error response text:', await response.text());
+      throw new Error('Failed to create order');
     }
     
     const data = await response.json();
@@ -84,3 +93,5 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
   const razorpay = new window.Razorpay(options);
   razorpay.open();
 };
+
+import { supabase } from "@/integrations/supabase/client";

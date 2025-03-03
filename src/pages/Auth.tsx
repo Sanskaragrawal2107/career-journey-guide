@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +8,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface LocationState {
+  returnTo?: string;
+  selectedInterval?: 'monthly' | 'yearly';
+}
+
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { returnTo, selectedInterval } = (location.state as LocationState) || {};
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        if (returnTo) {
+          navigate(returnTo, { state: { selectedInterval } });
+        } else {
+          navigate("/dashboard");
+        }
+      }
+    };
+    
+    checkSession();
+  }, [navigate, returnTo, selectedInterval]);
+
+  const handleSuccessfulAuth = () => {
+    if (returnTo) {
+      navigate(returnTo, { state: { selectedInterval } });
+    } else {
+      navigate("/dashboard");
+    }
+  };
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +54,7 @@ const Auth = () => {
         password,
       });
       if (error) throw error;
-      navigate("/dashboard");
+      handleSuccessfulAuth();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -50,11 +81,19 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     try {
-      // The key change is here - we're using the /auth/callback route instead of /dashboard
+      // Pass the returnTo path as part of the redirect URL
+      const redirectUrl = new URL(`${window.location.origin}/auth/callback`);
+      if (returnTo) {
+        redirectUrl.searchParams.append('returnTo', returnTo);
+      }
+      if (selectedInterval) {
+        redirectUrl.searchParams.append('selectedInterval', selectedInterval);
+      }
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl.toString(),
         },
       });
       if (error) throw error;

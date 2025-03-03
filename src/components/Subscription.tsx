@@ -1,12 +1,12 @@
 
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Loader2 } from "lucide-react";
 import { createRazorpayOrder, initiateRazorpayPayment } from "@/integrations/razorpay/client";
 import { useToast } from "@/components/ui/use-toast";
-import { useNavigate } from "react-router-dom";
 
 interface SubscriptionPlan {
   id: string;
@@ -17,12 +17,19 @@ interface SubscriptionPlan {
   features: string[];
 }
 
+interface LocationState {
+  selectedInterval?: 'monthly' | 'yearly';
+}
+
 export const Subscription = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingPayment, setProcessingPayment] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { selectedInterval } = (location.state as LocationState) || {};
+  const [currentPlanView, setCurrentPlanView] = useState<'monthly' | 'yearly'>(selectedInterval || 'monthly');
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -76,14 +83,14 @@ export const Subscription = () => {
       // Get order ID from our backend
       const orderId = await createRazorpayOrder(planId, interval);
       
-      // Calculate amount based on interval
+      // Calculate amount based on interval (amount in paise/cents)
       const amount = interval === 'monthly' ? plan.price_monthly * 100 : plan.price_yearly * 100;
       
       // Initialize Razorpay payment
       await initiateRazorpayPayment({
         key: "rzp_live_47mpRvV2Yh9XLZ", // Your Razorpay key
         amount: amount,
-        currency: "INR",
+        currency: "USD",
         name: "CareerSarthi",
         description: `${plan.name} Subscription`,
         order_id: orderId,
@@ -151,6 +158,10 @@ export const Subscription = () => {
     }
   };
 
+  const toggleView = () => {
+    setCurrentPlanView(currentPlanView === 'monthly' ? 'yearly' : 'monthly');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-10">
@@ -158,6 +169,11 @@ export const Subscription = () => {
       </div>
     );
   }
+
+  const filteredPlans = plans.filter(plan => 
+    (currentPlanView === 'monthly' && plan.price_monthly > 0) || 
+    (currentPlanView === 'yearly' && plan.price_yearly > 0)
+  );
 
   return (
     <div className="py-12 sm:py-16">
@@ -170,9 +186,18 @@ export const Subscription = () => {
           <p className="mt-4 text-lg text-gray-600">
             Unlock all features with a subscription
           </p>
+          <div className="mt-6">
+            <Button 
+              variant="outline" 
+              onClick={toggleView}
+              className="mt-4"
+            >
+              Switch to {currentPlanView === 'monthly' ? 'Yearly' : 'Monthly'} Plans
+            </Button>
+          </div>
         </div>
         <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-8 lg:grid-cols-2">
-          {plans.map((plan) => (
+          {filteredPlans.map((plan) => (
             <Card key={plan.id} className="flex flex-col justify-between">
               <CardHeader>
                 <CardTitle>{plan.name}</CardTitle>
@@ -180,14 +205,14 @@ export const Subscription = () => {
               </CardHeader>
               <CardContent>
                 <div className="mb-6">
-                  {plan.name.includes("Monthly") ? (
+                  {currentPlanView === 'monthly' ? (
                     <div className="flex items-baseline">
-                      <span className="text-4xl font-bold">₹ {plan.price_monthly}</span>
+                      <span className="text-4xl font-bold">${plan.price_monthly}</span>
                       <span className="text-sm text-gray-600 ml-1">/month</span>
                     </div>
                   ) : (
                     <div className="flex items-baseline">
-                      <span className="text-4xl font-bold">₹ {plan.price_yearly}</span>
+                      <span className="text-4xl font-bold">${plan.price_yearly}</span>
                       <span className="text-sm text-gray-600 ml-1">/year</span>
                       <span className="ml-2 rounded-full bg-primary-50 px-2 py-1 text-xs font-semibold text-primary">
                         Save 18%
@@ -208,12 +233,10 @@ export const Subscription = () => {
                 <Button
                   className="w-full"
                   disabled={processingPayment}
-                  onClick={() => 
-                    handleSubscription(
-                      plan.id, 
-                      plan.name.includes("Monthly") ? "monthly" : "yearly"
-                    )
-                  }
+                  onClick={() => handleSubscription(
+                    plan.id, 
+                    currentPlanView === 'monthly' ? 'monthly' : 'yearly'
+                  )}
                 >
                   {processingPayment ? (
                     <>
@@ -221,7 +244,7 @@ export const Subscription = () => {
                       Processing...
                     </>
                   ) : (
-                    `Subscribe ${plan.name.includes("Monthly") ? "Monthly" : "Yearly"}`
+                    `Subscribe ${currentPlanView === 'monthly' ? 'Monthly' : 'Yearly'}`
                   )}
                 </Button>
               </CardFooter>
