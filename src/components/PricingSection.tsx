@@ -15,10 +15,10 @@ const features = [
 ];
 
 interface PricingSectionProps {
-  userId: string | null;
+  userId?: string | null;
 }
 
-export const PricingSection = ({ userId }: PricingSectionProps) => {
+export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
   const [loading, setLoading] = useState({
     monthly: false,
     yearly: false
@@ -29,6 +29,8 @@ export const PricingSection = ({ userId }: PricingSectionProps) => {
     try {
       if (!userId) {
         toast.error("Please log in to subscribe");
+        // Store the current path to redirect back after authentication
+        sessionStorage.setItem('redirectAfterAuth', '/pricing');
         navigate("/auth");
         return;
       }
