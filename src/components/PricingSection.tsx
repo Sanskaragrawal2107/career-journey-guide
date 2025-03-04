@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
@@ -35,8 +36,9 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
 
       setLoading(prev => ({ ...prev, [planType]: true }));
 
-      const amount = planType === "monthly" ? 9 * 100 : 89 * 100; // Convert to paise
-      const currency = "INR";
+      // Using USD amounts instead of INR
+      const amount = planType === "monthly" ? 9 * 100 : 89 * 100; // Convert to cents
+      const currency = "USD"; // Changed from INR to USD
       const planDays = planType === "monthly" ? 30 : 365;
       const planName = planType === "monthly" ? "Monthly" : "Yearly";
 
