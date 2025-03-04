@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // Configure CORS headers
@@ -44,6 +43,14 @@ serve(async (req) => {
     // Base64 encode the API key and secret for authorization
     const authToken = btoa(`${key_id}:${key_secret}`);
 
+    // Generate a shorter receipt ID (must be <= 40 chars)
+    // Extract just the first part of the UUID to keep it shorter
+    const shortUserId = userId.split('-')[0];
+    const timestamp = Date.now().toString().slice(-8); // Use just the last 8 digits of timestamp
+    const receipt = `rcpt_${shortUserId}_${timestamp}`;
+    
+    console.log("Generated receipt ID:", receipt, "length:", receipt.length);
+
     // Create a new order
     const orderResponse = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
@@ -54,7 +61,7 @@ serve(async (req) => {
       body: JSON.stringify({
         amount,
         currency,
-        receipt: `receipt_${userId}_${Date.now()}`,
+        receipt,
         notes: {
           userId,
           planType,
