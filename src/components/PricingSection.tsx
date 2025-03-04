@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 
 const features = [
   "Resume Analysis",
-  "Skill Gap Detection",
+  "Skill Gap Detection", 
   "Career Path Suggestions",
   "Learning Resources",
   "Progress Tracking",
@@ -29,7 +28,6 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
     try {
       if (!userId) {
         toast.error("Please log in to subscribe");
-        // Store the current path to redirect back after authentication
         sessionStorage.setItem('redirectAfterAuth', '/pricing');
         navigate("/auth");
         return;
@@ -41,6 +39,8 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
       const currency = "INR";
       const planDays = planType === "monthly" ? 30 : 365;
       const planName = planType === "monthly" ? "Monthly" : "Yearly";
+
+      console.log("Creating order with:", { amount, currency, userId, planType, planDays });
 
       // Create order using our edge function
       const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
@@ -54,14 +54,18 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
       });
 
       if (error) {
-        throw new Error(error.message);
+        console.error("Edge function error:", error);
+        throw new Error(error.message || "Failed to create order");
       }
 
       const { orderId } = data;
 
       if (!orderId) {
+        console.error("No order ID returned:", data);
         throw new Error("Failed to create order");
       }
+
+      console.log("Order created successfully:", orderId);
 
       // Load Razorpay script if not already loaded
       if (!(window as any).Razorpay) {
@@ -76,34 +80,43 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
 
       // Initialize Razorpay payment
       const options = {
-        key: "rzp_live_47mpRvV2Yh9XLZ", // Replace with your Razorpay key
+        key: "rzp_live_47mpRvV2Yh9XLZ", // Using the provided Razorpay key
         amount: amount.toString(),
         currency,
         name: "CareerSarthi",
         description: `${planName} Subscription`,
         order_id: orderId,
         handler: async function (response: any) {
-          // Verify payment using our edge function
-          const { data: verificationData, error: verificationError } = await supabase.functions.invoke("verify-razorpay-payment", {
-            body: {
-              paymentId: response.razorpay_payment_id,
-              orderId: response.razorpay_order_id,
-              signature: response.razorpay_signature,
-              userId,
-              planType,
-              planDays,
-              amount
+          try {
+            console.log("Payment successful, verifying:", response);
+            // Verify payment using our edge function
+            const { data: verificationData, error: verificationError } = await supabase.functions.invoke("verify-razorpay-payment", {
+              body: {
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                signature: response.razorpay_signature,
+                userId,
+                planType,
+                planDays,
+                amount
+              }
+            });
+
+            if (verificationError) {
+              toast.error("Payment verification failed");
+              console.error("Verification error:", verificationError);
+              return;
             }
-          });
 
-          if (verificationError) {
-            toast.error("Payment verification failed");
-            console.error("Verification error:", verificationError);
-            return;
+            console.log("Payment verified successfully:", verificationData);
+            toast.success("Subscription activated successfully!");
+            navigate("/dashboard");
+          } catch (e) {
+            console.error("Error in payment handler:", e);
+            toast.error("Payment processing failed");
+          } finally {
+            setLoading({ monthly: false, yearly: false });
           }
-
-          toast.success("Subscription activated successfully!");
-          navigate("/dashboard");
         },
         prefill: {
           name: "User",
@@ -120,6 +133,7 @@ export const PricingSection = ({ userId }: PricingSectionProps = {}) => {
         }
       };
 
+      console.log("Opening Razorpay with options:", { ...options, key: "[REDACTED]" });
       const razorpay = new (window as any).Razorpay(options);
       razorpay.open();
     } catch (error: any) {

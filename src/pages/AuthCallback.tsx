@@ -49,14 +49,24 @@ const AuthCallback = () => {
           }
           
           // Check if there's a redirect destination saved
-          const redirectPath = sessionStorage.getItem('redirectAfterAuth') || '/dashboard';
+          const redirectPath = sessionStorage.getItem('redirectAfterAuth');
           sessionStorage.removeItem('redirectAfterAuth');
           
-          // If user doesn't have a subscription and is trying to access dashboard, redirect to pricing
-          if (!subscription && redirectPath === '/dashboard') {
-            navigate('/pricing');
-          } else {
+          if (redirectPath === '/auth/callback') {
+            // This is from the "Start your journey" button
+            if (subscription) {
+              // User has an active subscription, redirect to dashboard
+              navigate('/dashboard');
+            } else {
+              // User doesn't have an active subscription, redirect to pricing
+              navigate('/pricing');
+            }
+          } else if (redirectPath) {
+            // If there's another specific redirect path, honor it
             navigate(redirectPath);
+          } else {
+            // Default fallback - if subscription exists go to dashboard, otherwise pricing
+            navigate(subscription ? '/dashboard' : '/pricing');
           }
         } else {
           setError("Failed to retrieve session");

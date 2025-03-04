@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
 // Configure CORS headers
 const corsHeaders = {
@@ -38,6 +37,10 @@ serve(async (req) => {
     const key_id = Deno.env.get("RAZORPAY_KEY_ID") || "rzp_live_47mpRvV2Yh9XLZ";
     const key_secret = Deno.env.get("RAZORPAY_KEY_SECRET") || "0je47WgWBGYVUQgpwYLpfHup";
 
+    // Log the environment variables (for debugging)
+    console.log("Using Razorpay Key ID:", key_id);
+    console.log("Using Request Data:", { amount, currency, userId, planType, planDays });
+
     // Base64 encode the API key and secret for authorization
     const authToken = btoa(`${key_id}:${key_secret}`);
 
@@ -64,7 +67,13 @@ serve(async (req) => {
 
     if (!orderResponse.ok) {
       console.error("Razorpay error:", orderData);
-      throw new Error(orderData.error?.description || "Failed to create order");
+      return new Response(JSON.stringify({ 
+        error: orderData.error?.description || "Failed to create order",
+        details: orderData
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Return the order ID

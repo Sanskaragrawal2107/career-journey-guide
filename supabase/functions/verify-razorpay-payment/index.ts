@@ -36,6 +36,9 @@ serve(async (req) => {
   }
 
   try {
+    // Log inputs for debugging
+    console.log("Payment verification request:", { paymentId, orderId, userId, planType, planDays });
+    
     // Verify signature
     const key_secret = Deno.env.get("RAZORPAY_KEY_SECRET") || "0je47WgWBGYVUQgpwYLpfHup";
     const hmac = createHmac("sha256", key_secret);
@@ -51,6 +54,10 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("Missing environment variables:", { 
+        hasSupabaseUrl: !!SUPABASE_URL, 
+        hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY 
+      });
       throw new Error("Supabase environment variables not set");
     }
 
@@ -60,6 +67,11 @@ serve(async (req) => {
     const now = new Date();
     const endDate = new Date(now);
     endDate.setDate(now.getDate() + parseInt(planDays));
+
+    console.log("Creating subscription record with dates:", {
+      start: now.toISOString(),
+      end: endDate.toISOString()
+    });
 
     // Save subscription to database
     const { data: subscription, error } = await supabase

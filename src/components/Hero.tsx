@@ -12,11 +12,26 @@ export const Hero = () => {
     const { data } = await supabase.auth.getSession();
     
     if (data.session) {
-      // User is logged in, redirect to dashboard (subscription check will happen there)
-      navigate("/dashboard");
+      // User is logged in, now check if they have an active subscription
+      const { data: subscription, error } = await supabase
+        .from("user_subscriptions")
+        .select("*")
+        .eq("user_id", data.session.user.id)
+        .eq("status", "active")
+        .gt("current_period_end", new Date().toISOString())
+        .single();
+        
+      if (subscription) {
+        // User has an active subscription, redirect to dashboard
+        navigate("/dashboard");
+      } else {
+        // User is logged in but doesn't have an active subscription
+        navigate("/pricing");
+      }
     } else {
-      // Set redirect destination after authentication
-      sessionStorage.setItem('redirectAfterAuth', '/dashboard');
+      // User is not logged in, redirect to auth page
+      // Set redirect destination after authentication to auth callback handler
+      sessionStorage.setItem('redirectAfterAuth', '/auth/callback');
       navigate("/auth");
     }
   };
