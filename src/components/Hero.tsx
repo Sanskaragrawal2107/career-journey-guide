@@ -1,9 +1,25 @@
+
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Coffee, Briefcase, Sparkles, Rocket, Star, ChartBar } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Hero = () => {
   const navigate = useNavigate();
+
+  const handleStartJourney = async () => {
+    // Check if user is already logged in
+    const { data } = await supabase.auth.getSession();
+    
+    if (data.session) {
+      // User is logged in, redirect to dashboard (subscription check will happen there)
+      navigate("/dashboard");
+    } else {
+      // Set redirect destination after authentication
+      sessionStorage.setItem('redirectAfterAuth', '/dashboard');
+      navigate("/auth");
+    }
+  };
 
   return (
     <div className="relative isolate px-6 pt-14 lg:px-8">
@@ -32,7 +48,7 @@ export const Hero = () => {
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6 animate-fade-in">
             <Button
-              onClick={() => navigate("/auth")}
+              onClick={handleStartJourney}
               className="bg-primary hover:bg-primary-700 text-white transform transition-all hover:scale-105 group"
               size="lg"
             >

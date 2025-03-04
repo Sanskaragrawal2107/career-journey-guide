@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import { SubscriptionCheck } from "@/components/SubscriptionCheck";
+import Pricing from "./pages/Pricing";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!session) {
+    // Save the intended destination for redirect after login
+    sessionStorage.setItem('redirectAfterAuth', window.location.pathname);
     return <Navigate to="/auth" />;
   }
 
@@ -73,11 +77,14 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route
             path="/dashboard"
             element={
               <PrivateRoute>
-                <Dashboard />
+                <SubscriptionCheck>
+                  <Dashboard />
+                </SubscriptionCheck>
               </PrivateRoute>
             }
           />

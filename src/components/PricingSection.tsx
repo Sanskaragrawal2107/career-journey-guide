@@ -1,5 +1,10 @@
+
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
+import { toast } from "sonner";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const features = [
   "Resume Analysis",
@@ -9,7 +14,120 @@ const features = [
   "Progress Tracking",
 ];
 
-export const PricingSection = () => {
+interface PricingSectionProps {
+  userId: string | null;
+}
+
+export const PricingSection = ({ userId }: PricingSectionProps) => {
+  const [loading, setLoading] = useState({
+    monthly: false,
+    yearly: false
+  });
+  const navigate = useNavigate();
+
+  const handleSubscription = async (planType: "monthly" | "yearly") => {
+    try {
+      if (!userId) {
+        toast.error("Please log in to subscribe");
+        navigate("/auth");
+        return;
+      }
+
+      setLoading(prev => ({ ...prev, [planType]: true }));
+
+      const amount = planType === "monthly" ? 9 * 100 : 89 * 100; // Convert to paise
+      const currency = "INR";
+      const planDays = planType === "monthly" ? 30 : 365;
+      const planName = planType === "monthly" ? "Monthly" : "Yearly";
+
+      // Create order using our edge function
+      const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
+        body: {
+          amount,
+          currency,
+          userId,
+          planType,
+          planDays
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const { orderId } = data;
+
+      if (!orderId) {
+        throw new Error("Failed to create order");
+      }
+
+      // Load Razorpay script if not already loaded
+      if (!(window as any).Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      // Initialize Razorpay payment
+      const options = {
+        key: "rzp_live_47mpRvV2Yh9XLZ", // Replace with your Razorpay key
+        amount: amount.toString(),
+        currency,
+        name: "CareerSarthi",
+        description: `${planName} Subscription`,
+        order_id: orderId,
+        handler: async function (response: any) {
+          // Verify payment using our edge function
+          const { data: verificationData, error: verificationError } = await supabase.functions.invoke("verify-razorpay-payment", {
+            body: {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              userId,
+              planType,
+              planDays,
+              amount
+            }
+          });
+
+          if (verificationError) {
+            toast.error("Payment verification failed");
+            console.error("Verification error:", verificationError);
+            return;
+          }
+
+          toast.success("Subscription activated successfully!");
+          navigate("/dashboard");
+        },
+        prefill: {
+          name: "User",
+          email: "", // We could fetch this from the user profile if needed
+        },
+        theme: {
+          color: "#4F46E5",
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading({ monthly: false, yearly: false });
+            toast.info("Payment cancelled");
+          }
+        }
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (error: any) {
+      console.error("Subscription error:", error);
+      toast.error(error.message || "Failed to process payment. Please try again.");
+    } finally {
+      setLoading({ monthly: false, yearly: false });
+    }
+  };
+
   return (
     <div className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -44,8 +162,12 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button className="mt-8 bg-primary hover:bg-primary-700">
-              Subscribe Monthly
+            <Button 
+              className="mt-8 bg-primary hover:bg-primary-700"
+              onClick={() => handleSubscription("monthly")}
+              disabled={loading.monthly}
+            >
+              {loading.monthly ? "Processing..." : "Subscribe Monthly"}
             </Button>
           </div>
 
@@ -76,8 +198,12 @@ export const PricingSection = () => {
                 ))}
               </ul>
             </div>
-            <Button className="mt-8 bg-primary hover:bg-primary-700">
-              Subscribe Yearly
+            <Button 
+              className="mt-8 bg-primary hover:bg-primary-700"
+              onClick={() => handleSubscription("yearly")}
+              disabled={loading.yearly}
+            >
+              {loading.yearly ? "Processing..." : "Subscribe Yearly"}
             </Button>
           </div>
         </div>

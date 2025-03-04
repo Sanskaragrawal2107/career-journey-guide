@@ -34,7 +34,30 @@ const AuthCallback = () => {
         
         if (data?.session) {
           toast.success("Successfully signed in!");
-          navigate('/dashboard');
+          
+          // Check if user has an active subscription
+          const { data: subscription, error: subError } = await supabase
+            .from("user_subscriptions")
+            .select("*")
+            .eq("user_id", data.session.user.id)
+            .eq("status", "active")
+            .gt("current_period_end", new Date().toISOString())
+            .single();
+          
+          if (subError && subError.code !== "PGRST116") {
+            console.error("Error checking subscription:", subError);
+          }
+          
+          // Check if there's a redirect destination saved
+          const redirectPath = sessionStorage.getItem('redirectAfterAuth') || '/dashboard';
+          sessionStorage.removeItem('redirectAfterAuth');
+          
+          // If user doesn't have a subscription and is trying to access dashboard, redirect to pricing
+          if (!subscription && redirectPath === '/dashboard') {
+            navigate('/pricing');
+          } else {
+            navigate(redirectPath);
+          }
         } else {
           setError("Failed to retrieve session");
           toast.error("Authentication failed. Please try again.");
