@@ -45,29 +45,38 @@ export const FreeSkillGapAnalysis = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      // Simulate uploading
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProgress(50);
+      // Get temporary URL for the uploaded file
+      const fileUrl = URL.createObjectURL(file);
+      setProgress(40);
       
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Send to Make.com webhook for processing
+      console.log("Sending PDF URL to Make.com webhook");
+      setProgress(60);
+      
+      // Send to Make.com webhook and wait for response (same as in SkillGapAnalysis)
+      const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileUrl }),
+      });
+
+      if (!makeResponse.ok) {
+        throw new Error("Failed to process resume");
+      }
+
+      // Parse the JSON response from Make.com
+      const skillGapData: SkillGapResponse = await makeResponse.json();
+      console.log("Received skill gap data:", skillGapData);
+      setSkillGaps(skillGapData.skillGaps);
+      
       setProgress(80);
-      
-      // Demo data for free version
-      const demoSkillGaps = [
-        "React Native",
-        "GraphQL",
-        "Docker Containerization",
-        "AWS Cloud Services",
-        "CI/CD Pipeline Management"
-      ];
-      
-      setSkillGaps(demoSkillGaps);
-      
       toast({
         title: "Success",
         description: "Resume processed successfully. Check out your skill gaps below!",
       });
+      
+      // Clean up the object URL after processing
+      URL.revokeObjectURL(fileUrl);
       
       setProgress(100);
     } catch (error) {
@@ -93,7 +102,7 @@ export const FreeSkillGapAnalysis = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "skill_gaps_demo.csv");
+    link.setAttribute("download", "skill_gaps.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -115,7 +124,7 @@ export const FreeSkillGapAnalysis = () => {
           <h2 className="text-xl font-semibold mb-2 bronze-text">Try our AI-powered Skill Gap Analysis</h2>
           <p className="text-gray-400">
             Upload your resume and get instant insights about which skills you should develop to advance your career.
-            This free trial provides a sample of our full analysis available in the premium version.
+            This free trial provides the same analysis as our premium version, without requiring an account.
           </p>
         </div>
         
