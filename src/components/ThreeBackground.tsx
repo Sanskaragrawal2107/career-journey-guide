@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
@@ -14,10 +15,10 @@ export const ThreeBackground = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     containerRef.current.appendChild(renderer.domElement);
 
-    // Create floating particles with different sizes and colors
+    // Create floating particles with different sizes and colors based on the copper/bronze theme
     const particles = new THREE.Group();
     const particleCount = 150;
-    const colors = [0x1E3A8A, 0x3B82F6, 0x60A5FA];
+    const colors = [0xB87A45, 0xD5A876, 0xA36B3E]; // Copper/bronze colors
     
     for (let i = 0; i < particleCount; i++) {
       const size = Math.random() * 0.2 + 0.05;
@@ -85,5 +86,5 @@ export const ThreeBackground = () => {
     };
   }, []);
 
-  return <div ref={containerRef} className="fixed inset-0 -z-10" />;
+  return <div ref={containerRef} className="fixed inset-0 -z-10 bg-gradient-to-b from-dark-darker to-dark-lighter" />;
 };
