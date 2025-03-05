@@ -41,6 +41,13 @@ export const Hero = () => {
     }
   };
 
+  const scrollToPricing = () => {
+    const pricingSection = document.getElementById('pricing-section');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="relative isolate px-6 pt-14 lg:px-8">
       <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
@@ -77,7 +84,7 @@ export const Hero = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate("/pricing")}
+              onClick={scrollToPricing}
               size="lg"
               className="transform transition-all hover:scale-105 group"
             >
