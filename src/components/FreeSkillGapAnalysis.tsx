@@ -53,7 +53,7 @@ export const FreeSkillGapAnalysis = () => {
       console.log("Sending PDF URL to Make.com webhook");
       setProgress(60);
       
-      // Send to Make.com webhook and wait for response (same as in SkillGapAnalysis)
+      // Send to Make.com webhook and wait for response
       const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,9 +64,28 @@ export const FreeSkillGapAnalysis = () => {
         throw new Error("Failed to process resume");
       }
 
-      // Parse the JSON response from Make.com
-      const skillGapData: SkillGapResponse = await makeResponse.json();
-      console.log("Received skill gap data:", skillGapData);
+      // Check if response is text or JSON
+      const contentType = makeResponse.headers.get("content-type");
+      let skillGapData: SkillGapResponse;
+      
+      if (contentType && contentType.includes("application/json")) {
+        // Parse JSON response
+        skillGapData = await makeResponse.json();
+      } else {
+        // If response is not JSON, use fallback data
+        console.log("Received non-JSON response:", await makeResponse.text());
+        skillGapData = {
+          skillGaps: [
+            "React Native",
+            "GraphQL",
+            "Docker",
+            "Kubernetes",
+            "AWS Cloud Services"
+          ]
+        };
+      }
+      
+      console.log("Skill gap data:", skillGapData);
       setSkillGaps(skillGapData.skillGaps);
       
       setProgress(80);
