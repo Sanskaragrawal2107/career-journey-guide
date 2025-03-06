@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,22 +40,18 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(true);
       setProgress(20);
       
-      // Convert file to base64 string for reliable transmission
-      const fileBase64 = await convertFileToBase64(file);
+      // Create a temporary URL for the file
+      const fileUrl = URL.createObjectURL(file);
       setProgress(40);
       
-      console.log("Sending PDF data to Make.com webhook");
+      console.log("Sending PDF URL to Make.com webhook");
       setProgress(60);
       
       // Send to Make.com webhook and wait for response
       const makeResponse = await fetch("https://hook.eu2.make.com/lb8ciads0w7jgqg9h1iiswzbzggshpd1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          fileName: file.name,
-          fileType: file.type,
-          fileData: fileBase64
-        }),
+        body: JSON.stringify({ fileUrl }),
       });
 
       if (!makeResponse.ok) {
@@ -93,6 +88,9 @@ export const FreeSkillGapAnalysis = () => {
         description: "Resume processed successfully. Check out your skill gaps below!",
       });
       
+      // Clean up the object URL after processing
+      URL.revokeObjectURL(fileUrl);
+      
       setProgress(100);
     } catch (error) {
       console.error("Error processing file:", error);
@@ -105,21 +103,6 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(false);
       setTimeout(() => setProgress(0), 500);
     }
-  };
-
-  // Helper function to convert File to base64 string
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
-        const base64Content = base64String.split(',')[1];
-        resolve(base64Content);
-      };
-      reader.onerror = (error) => reject(error);
-    });
   };
 
   const downloadResults = () => {
