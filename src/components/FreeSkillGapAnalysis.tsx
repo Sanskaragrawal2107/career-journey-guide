@@ -42,6 +42,14 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(true);
       setProgress(20);
       
+      // First, ensure the bucket exists by calling the edge function
+      const { error: bucketError } = await supabase.functions.invoke('create-resume-bucket');
+      
+      if (bucketError) {
+        console.error("Error creating bucket:", bucketError);
+        throw new Error(`Failed to create bucket: ${bucketError.message}`);
+      }
+      
       // Upload file to Supabase storage
       const timestamp = new Date().getTime();
       const filePath = `temp-resumes/${timestamp}_${file.name}`;
