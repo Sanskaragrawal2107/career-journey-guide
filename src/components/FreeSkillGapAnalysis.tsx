@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Download, Info, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Tooltip,
   TooltipContent,
@@ -41,14 +42,32 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(true);
       setProgress(20);
       
-      // Convert file to base64 for reliable transmission
-      const fileData = await readFileAsBase64(file);
+      // Upload file to Supabase storage
+      const timestamp = new Date().getTime();
+      const filePath = `temp-resumes/${timestamp}_${file.name}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resume-uploads')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        throw new Error(`Failed to upload file: ${uploadError.message}`);
+      }
+      
       setProgress(40);
       
-      // Create a proper fileUrl in the expected format
-      const fileUrl = `data:${file.type};base64,${fileData}`;
+      // Get the signed URL for the uploaded file
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('resume-uploads')
+        .createSignedUrl(filePath, 60 * 60); // 1 hour expiry
       
-      console.log("Sending PDF fileUrl to Make.com webhook");
+      if (urlError || !urlData?.signedUrl) {
+        throw new Error(`Failed to generate signed URL: ${urlError?.message || "No URL generated"}`);
+      }
+      
+      const fileUrl = urlData.signedUrl;
+      console.log("Sending signed URL to Make.com webhook:", fileUrl);
+      
       setProgress(60);
       
       // Send to Make.com webhook and wait for response
@@ -93,6 +112,15 @@ export const FreeSkillGapAnalysis = () => {
       });
       
       setProgress(100);
+      
+      // Clean up: delete the temporary file after processing
+      const { error: deleteError } = await supabase.storage
+        .from('resume-uploads')
+        .remove([filePath]);
+        
+      if (deleteError) {
+        console.error("Failed to delete temporary file:", deleteError);
+      }
     } catch (error) {
       console.error("Error processing file:", error);
       toast({
@@ -104,24 +132,6 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(false);
       setTimeout(() => setProgress(0), 500);
     }
-  };
-
-  // Helper function to read file as base64
-  const readFileAsBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          // Extract only the base64 data part
-          const base64Data = reader.result.split(',')[1];
-          resolve(base64Data);
-        } else {
-          reject(new Error('Failed to read file as base64'));
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   };
 
   const downloadResults = () => {
