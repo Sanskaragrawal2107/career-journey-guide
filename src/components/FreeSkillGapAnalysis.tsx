@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,14 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(true);
       setProgress(20);
       
-      // Create a temporary URL for the file
-      const fileUrl = URL.createObjectURL(file);
+      // Convert file to base64 for reliable transmission
+      const fileData = await readFileAsBase64(file);
       setProgress(40);
       
-      console.log("Sending PDF URL to Make.com webhook");
+      // Create a proper fileUrl in the expected format
+      const fileUrl = `data:${file.type};base64,${fileData}`;
+      
+      console.log("Sending PDF fileUrl to Make.com webhook");
       setProgress(60);
       
       // Send to Make.com webhook and wait for response
@@ -88,9 +92,6 @@ export const FreeSkillGapAnalysis = () => {
         description: "Resume processed successfully. Check out your skill gaps below!",
       });
       
-      // Clean up the object URL after processing
-      URL.revokeObjectURL(fileUrl);
-      
       setProgress(100);
     } catch (error) {
       console.error("Error processing file:", error);
@@ -103,6 +104,24 @@ export const FreeSkillGapAnalysis = () => {
       setLoading(false);
       setTimeout(() => setProgress(0), 500);
     }
+  };
+
+  // Helper function to read file as base64
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          // Extract only the base64 data part
+          const base64Data = reader.result.split(',')[1];
+          resolve(base64Data);
+        } else {
+          reject(new Error('Failed to read file as base64'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const downloadResults = () => {
