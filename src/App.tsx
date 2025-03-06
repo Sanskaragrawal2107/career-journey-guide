@@ -12,7 +12,6 @@ import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import { SubscriptionCheck } from "@/components/SubscriptionCheck";
 import Pricing from "./pages/Pricing";
-import FreeFeatureTrials from "./pages/FreeFeatureTrials";
 
 const queryClient = new QueryClient();
 
@@ -79,7 +78,6 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/pricing" element={<Pricing />} />
-          <Route path="/try/*" element={<FreeFeatureTrials />} />
           <Route
             path="/dashboard"
             element={
